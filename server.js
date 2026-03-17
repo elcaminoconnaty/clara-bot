@@ -320,6 +320,19 @@ app.post('/chat', async (req, res) => {
     }
 
     let messageText = message ? String(message).trim() : '';
+
+    if (!messageText && !audioBase64) {
+      const noAudioResponse = {
+        version: 'v2',
+        content: {
+          type: 'instagram',
+          messages: [{ type: 'text', text: '¡Hola! 🎙️ Por ahora no puedo escuchar notas de voz, pero estamos trabajando en eso. ¿Puedes escribirme tu mensaje? Con gusto te respondo 😊' }]
+        }
+      };
+      console.log(`[${userId}] Nota de voz detectada — respondiendo con mensaje de aviso.`);
+      return res.json(noAudioResponse);
+    }
+
     let wasTranscribed = false;
 
     if (audioBase64) {
