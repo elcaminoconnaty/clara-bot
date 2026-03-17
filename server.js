@@ -104,6 +104,7 @@ Itinerario:
 - Día 11: Santiago. Actividad de cierre. Fin del acompañamiento
 
 Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y meditaciones, bitácora de viaje, camiseta oficial, fotografía y video profesional de Nico, 10 noches hospedaje (8 pensiones/hoteles + 2 hoteles superiores), 10 desayunos, 2 cenas grupales especiales, traslado Porto–Viana en van privada, transporte de maleta entre etapas (hasta 15kg), credencial del peregrino, Compostela, seguro de viaje.
+Tipo de alojamiento: Los alojamientos son hoteles, pensiones, Pazos y hoteles 5 estrellas superior. En este camino NO se utilizan albergues. Todos están altamente curados para sostener la intención del camino: soberanía interior y gozo, priorizando el descanso, la comodidad y el bienestar del peregrino en todo momento.
 No incluye: vuelos/traslados desde origen, almuerzos, cenas adicionales, gastos personales, lavandería (5-8€), taxis durante el camino.
 Pagos: 30% para reservar / 30% hasta 15 dic 2025 / 40% hasta 1 mar 2026
 
@@ -130,6 +131,7 @@ Itinerario:
 - Día 8 (May 1): Amanecer en Santiago. Desayuno. Fin del acompañamiento
 
 Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y rituales, traslado Madrid–Sarria en tren, transporte de morral entre etapas (hasta 15kg), kit de peregrina, 7 noches hospedaje (1 albergue + 4 pensiones/hoteles + 2 hoteles superiores), 7 desayunos, 6 cenas, traslado en bus a Finisterre y regreso, credencial del peregrino, Compostela, seguro de viaje.
+Tipo de alojamiento: Los alojamientos son cuidadosamente curados. Incluyen una combinación de: pensiones, hoteles, albergues privados (no públicos), Pazos (casas señoriales tradicionales gallegas) y hoteles 5 estrellas superior. Este contraste es intencional: invita a cada peregrino a observar qué siente frente al lujo y frente a lo simple. Ahí también ocurre parte del trabajo interior.
 No incluye: vuelos/traslados desde origen, almuerzos, gastos personales, taxis durante el camino.
 Pagos: 30% para reservar / 30% hasta 31 dic 2025 / 40% hasta 20 mar 2026
 
@@ -154,6 +156,7 @@ Itinerario:
 - Día 8 (Oct 4): Amanecer en Santiago. Desayuno. Fin del acompañamiento
 
 Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y rituales, traslado Madrid–Sarria en tren, transporte de morral entre etapas (hasta 15kg), kit de peregrino, 7 noches hospedaje (1 albergue + 4 pensiones/hoteles + 2 hoteles superiores), 7 desayunos, 6 cenas, traslado en bus a Finisterre y regreso, credencial del peregrino, Compostela, seguro de viaje.
+Tipo de alojamiento: Los alojamientos son cuidadosamente curados. Incluyen una combinación de: pensiones, hoteles, albergues privados (no públicos), Pazos (casas señoriales tradicionales gallegas) y hoteles 5 estrellas superior. Este contraste es intencional: invita a cada peregrino a observar qué siente frente al lujo y frente a lo simple. Ahí también ocurre parte del trabajo interior.
 No incluye: vuelos/traslados desde origen, almuerzos, gastos personales, taxis durante el camino.
 Pagos: 30% para reservar / 30% hasta 30 abr 2026 / 40% hasta 30 ago 2026
 
