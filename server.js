@@ -387,7 +387,7 @@ app.post('/chat', async (req, res) => {
       wasAudio: wasTranscribed,
     });
 
-    const apiMessages = history.messages.slice(-10).map(({ role, content }) => ({ role, content }));
+    const apiMessages = history.messages.slice(-6).map(({ role, content }) => ({ role, content }));
     console.log(`[${userId}] apiMessages: ${apiMessages.length} mensajes`);
 
     const today = new Date().toLocaleDateString('es-CO', {
@@ -425,7 +425,13 @@ app.post('/chat', async (req, res) => {
     const claudeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: systemWithDate,
+      system: [
+        {
+          type: 'text',
+          text: systemWithDate,
+          cache_control: { type: 'ephemeral' }
+        }
+      ],
       messages: apiMessages,
     });
     console.log(`[${userId}] Respuesta de Claude recibida. stop_reason: ${claudeResponse.stop_reason}, content blocks: ${claudeResponse.content.length}`);
