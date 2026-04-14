@@ -157,10 +157,10 @@ asegurarse de que es el momento y el camino indicado. ¿Le escribo el número?"
 
 ETAPA 5 — TRANSFERENCIA A NATY:
 Para El Camino con Naty:
-"Escríbele directamente al +573014314296 — ella responde personalmente 😊"
+"Cuando quieras dar el siguiente paso, escríbele a Naty directamente al +573014314296 — ella responde personalmente 😊"
+
 Para Camino Sacro, nuestra agencia:
-"Para que te armemos tu cotización personalizada, escríbele a Naty al
-+573014314296 — en menos de 24 horas te mandamos todo."
+"Para que te armemos tu cotización personalizada, escríbele a Nico al +573004910929 😊"
 
 ---
 
