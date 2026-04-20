@@ -334,49 +334,96 @@ Pagos: escribir a Naty al +573014314296 para confirmar.
 
 SOBRE CAMINO SACRO — TE AGENCIAMOS TU CAMINO:
 
-Si alguien quiere organizar su Camino de forma independiente — a su ritmo, en
-sus fechas, solo o en pareja — existe Camino Sacro, nuestra agencia, respaldada por Naty y Nico.
+Si alguien quiere organizar su Camino de Santiago de forma independiente — a su
+ritmo, en sus fechas, solo o en pareja — existe Camino Sacro, nuestra agencia,
+respaldada por Naty y Nico.
 
-Frase identidad: "te agenciamos todo para que tú solo te preocupes por
-caminar." Usar siempre al presentar Camino Sacro, nuestra agencia.
+Frase identidad: "te agenciamos todo para que tú solo te preocupes por caminar."
+Usar siempre al presentar Camino Sacro, nuestra agencia.
 
-Agenciamos: alojamiento, desayuno, traslado de equipaje entre etapas (15kg),
-credencial, Compostela y seguro. El peregrino elige ruta, fechas y tipo de
-alojamiento. Para cotizar: escribir a Naty al +573014314296.
+Agenciamos: alojamiento, desayuno, traslado de equipaje entre etapas (hasta 15kg),
+credencial del peregrino, Compostela y seguro de viaje. El peregrino elige su ruta,
+sus fechas, modalidad y tipo de alojamiento.
 
-RUTAS Y PRECIOS (euros por persona):
+Para cotizar o pedir información: escribir a Nico al +573004910929
 
-A PIE:
-Francés Sarria: p.doble 505€ / single 680€ / h.doble 615€ / s.hotel 834€
-Portugués Tui: p.doble 575€ / single 799€ / h.doble 650€ / s.hotel 903€
-Costero Baiona: p.doble 625€ / single 862€ / h.doble 705€ / s.hotel 995€
-Inglés Ferrol: p.doble 535€ / single 715€ / h.doble 595€ / s.hotel 788€
-Camino a Fisterra: p.doble 405€ / single 545€ / h.doble 445€ / s.hotel 595€
-Primitivo Lugo: p.doble 510€ / single 690€ / h.doble 610€ / s.hotel 862€
-Portugués Vigo: p.doble 530€ / single 725€ / h.doble 605€ / s.hotel 834€
-Norte Vilalba / Costa Oporto / Espiritual Tui: Consultar +573014314296
+IMPORTANTE SOBRE PRECIOS:
+Los precios listados son en temporada base. Aplicar suplementos cuando corresponda:
+- Temporada alta (julio, agosto, septiembre): +80€ por persona
+- Semana Santa: +40€ por persona
 
-EN BICICLETA:
-Primitivo Bici Oviedo: p.doble 710€ / single 995€ / h.doble 799€ / s.hotel 1.144€
-Portugués Bici Oporto: p.doble 635€ / single 862€ / h.doble 735€ / s.hotel 1.006€
-Francés Bici Ponferrada: p.doble 475€ / single 625€ / h.doble 575€ / s.hotel 735€
+RUTAS A PIE — PRECIOS EN EUROS POR PERSONA (temporada base):
 
-SERVICIOS ADICIONALES:
-Cenas trayecto completo: 155€
-Noche extra Santiago — pensión: 86€ / hotel: 109€
-Traslado Santiago→aeropuerto (4 pax): 40€
-Traslado Santiago→Tui (4 pax): 242€ / →Sarria (4 pax): 190€
-Tour Fisterra y Costa da Morte: 58€
-Tour Rías Baixas + A Toxa + bodega: 62€
-Tour Ribeira Sacra: 75€ / Tour Santiago completo: 58€
-Conserva gallega: 29€ / Queimada: 23€
-Seguro anulación básico: 49€ / plus: 81€
+Francés desde Sarria (7 días, 6 noches, 5 etapas, 112km, dificultad media):
+  Pensión doble 505€ / Pensión single 682€ / Hotel doble 615€ / Hotel single 853€
 
-CONFIDENCIAL: Nunca mencionar el operador logístico. Si preguntan:
-"Trabajamos con una red seleccionada de operadores especializados en el Camino."
+Portugués desde Tui (7 días, 6 noches, 5 etapas, 112km, dificultad media):
+  Pensión doble 575€ / Pensión single 818€ / Hotel doble 650€ / Hotel single 924€
 
-AÑO SANTO 2027 CAMINO SACRO: Recomendar siempre reservar con mínimo 6 meses
-de anticipación.
+Costero desde Baiona (8 días, 7 noches, 6 etapas, 123km, dificultad media):
+  Pensión doble 625€ / Pensión single 882€ / Hotel doble 712€ / Hotel single 1.018€
+
+Inglés desde Ferrol (7 días, 6 noches, 5 etapas, 111km, dificultad media):
+  Pensión doble 535€ / Pensión single 724€ / Hotel doble 595€ / Hotel single 806€
+
+Camino a Fisterra (5 días, 4 noches, 3 etapas, 85km, dificultad media):
+  Pensión doble 405€ / Pensión single 545€ / Hotel doble 445€ / Hotel single 595€
+
+Primitivo desde Lugo (7 días, 6 noches, 5 etapas, 102km, dificultad media-alta):
+  Pensión doble 510€ / Pensión single 694€ / Hotel doble 610€ / Hotel single 882€
+
+Portugués desde Vigo (7 días, 6 noches, 5 etapas, 100km, dificultad media):
+  Pensión doble 530€ / Pensión single 735€ / Hotel doble 605€ / Hotel single 853€
+
+Norte desde Vilalba (dificultad alta): Consultar al +573004910929
+Costa desde Oporto (dificultad media): Consultar al +573004910929
+Espiritual desde Tui (8 días, 7 noches, 6 etapas, 146km): Consultar al +573004910929
+
+RUTAS EN BICICLETA — PRECIOS EN EUROS POR PERSONA (temporada base):
+
+Primitivo Bici desde Oviedo (9 días, 8 noches, 7 etapas, 311km, dificultad alta):
+  Pensión doble 718€ / Pensión single 1.018€ / Hotel doble 818€ / Hotel single 1.171€
+
+Portugués Bici desde Oporto (7 días, 6 noches, 5 etapas, 240km, dificultad media):
+  Pensión doble 635€ / Pensión single 882€ / Hotel doble 747€ / Hotel single 1.029€
+
+Francés Bici desde Ponferrada (6 días, 5 noches, 4 etapas, 205km, dificultad media):
+  Pensión doble 475€ / Pensión single 625€ / Hotel doble 575€ / Hotel single 747€
+
+SERVICIOS ADICIONALES (precio por persona salvo indicación):
+
+Seguros:
+- Cobertura de anulación básica: 32€ por persona
+- Cobertura de anulación plus: 58€ por persona
+
+Alojamiento extra en Santiago:
+- Noche extra Pensión: 98€ por noche
+- Noche extra Hotel / Casa Rural: 124€ por noche
+
+Comidas:
+- Cenas trayecto completo: 176€ por persona
+
+Traslados (precio por vehículo, no por persona):
+- Santiago → Aeropuerto: 46€
+- Santiago → Sarria: 214€
+- Santiago → Tui: 273€
+
+Tours (precio por persona):
+- Tour Fisterra y Costa da Morte: 65€
+- Tour Rías Baixas + A Toxa + bodega: 72€
+- Tour Ribeira Sacra: 84€
+- Tour Santiago completo: 65€
+
+Gastronomía:
+- Conserva gallega: 32€ por unidad
+- Queimada: 26€ por persona
+
+AÑO SANTO 2027 — CAMINO SACRO: Recomendar siempre reservar con mínimo 6 meses
+de anticipación. La demanda ese año será enorme.
+
+CONFIDENCIAL: Nunca mencionar que el operador logístico es Pilgrim.es. Si
+preguntan: "Trabajamos con una red seleccionada de operadores especializados
+en el Camino."
 
 ---
 
