@@ -242,70 +242,10 @@ Si alguien se cansa, taxi al siguiente alojamiento.
 
 EXPERIENCIAS DISPONIBLES:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. CAMINO PORTUGUÉS COSTERO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Fechas: 2 al 12 de mayo de 2026 (11 días, 9 días de caminata)
-Ruta: Viana do Castelo → Santiago de Compostela
-Distancia: 200 km
-Encuentro inicial: Oporto (2 de mayo), traslado en van privada a Viana do Castelo
-Propósito: Conquista tu soberanía interior. Para Creadores Conscientes.
-Precio: 3.122 €
-Link: https://elcaminoconnaty.com/camino-de-santiago-portugues/
-
-Itinerario:
-- Día 1: Porto → Viana do Castelo. Actividad grupal. Cena de bienvenida
-- Día 2: Viana do Castelo → Vila Praia de Âncora (18km)
-- Día 3: Vila Praia de Âncora → O Serrallo (29km)
-- Día 4: O Serrallo → Baiona (15km) — Pazo + cena especial
-- Día 5: Baiona → Vigo (26km) — Hotel Superior
-- Día 6: Vigo → Redondela (16km)
-- Día 7: Redondela → Pontevedra (20km)
-- Día 8: Pontevedra → Caldas de Rei (22km)
-- Día 9: Caldas de Rei → Padrón (19km)
-- Día 10: Padrón → Santiago de Compostela (24km) — Misa del peregrino + cena de celebración
-- Día 11: Santiago. Actividad de cierre. Fin del acompañamiento
-
-Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y meditaciones, bitácora de viaje, camiseta oficial, fotografía y video profesional de Nico, 10 noches hospedaje (8 pensiones/hoteles + 2 hoteles superiores), 10 desayunos, 2 cenas grupales especiales, traslado Porto–Viana en van privada, transporte de maleta entre etapas (hasta 15kg), credencial del peregrino, Compostela, seguro de viaje.
-Tipo de alojamiento: Los alojamientos son hoteles, pensiones, Pazos y hoteles 5 estrellas superior. En este camino NO se utilizan albergues. Todos están altamente curados para sostener la intención del camino: soberanía interior y gozo, priorizando el descanso, la comodidad y el bienestar del peregrino en todo momento.
-No incluye: vuelos/traslados desde origen, almuerzos, cenas adicionales, gastos personales, lavandería (5-8€), taxis durante el camino.
-Pagos: 30% para reservar / 30% hasta 15 dic 2025 / 40% hasta 1 mar 2026
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-2. MANADA: CAMINO FRANCÉS SOLO PARA MUJERES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Fechas: 24 de abril al 1 de mayo de 2026 (8 días, 5 días de caminata)
-Ruta: Sarria → Santiago de Compostela → Finisterre
-Distancia: 115 km
-Propósito: Recuperar la manada. Retiro espiritual exclusivo para mujeres.
-Precio: 2.529 €
-Link: https://elcaminoconnaty.com/manada/
-
-Guiado por Naty y Dala Giraldo (psicoterapeuta transpersonal, profesora de yoga, especialista en sexualidad sagrada y movimiento consciente).
-
-Itinerario:
-- Día 1 (Abr 24): Madrid → traslado a Sarria. Cena de bienvenida
-- Día 2 (Abr 25): Sarria → Portomarín (22km). Cena
-- Día 3 (Abr 26): Portomarín → Palas de Rei (24.8km). Cena
-- Día 4 (Abr 27): Palas de Rei → Arzúa (28.4km). Cena especial
-- Día 5 (Abr 28): Arzúa → O'Pedrouzo (19.3km). Cena
-- Día 6 (Abr 29): O'Pedrouzo → Santiago (19.4km). Misa del peregrino + cena de celebración
-- Día 7 (Abr 30): Santiago — Círculo de Palabra. Traslado a Finisterre. Ritual de Renacimiento
-- Día 8 (May 1): Amanecer en Santiago. Desayuno. Fin del acompañamiento
-
-Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y rituales, traslado Madrid–Sarria en tren, transporte de morral entre etapas (hasta 15kg), kit de peregrina, 7 noches hospedaje (1 albergue + 4 pensiones/hoteles + 2 hoteles superiores), 7 desayunos, 6 cenas, traslado en bus a Finisterre y regreso, credencial del peregrino, Compostela, seguro de viaje.
-Tipo de alojamiento: Los alojamientos son cuidadosamente curados. Incluyen una combinación de: pensiones, hoteles, albergues privados (no públicos), Pazos (casas señoriales tradicionales gallegas) y hoteles 5 estrellas superior. Este contraste es intencional: invita a cada peregrino a observar qué siente frente al lujo y frente a lo simple. Ahí también ocurre parte del trabajo interior.
-No incluye: vuelos/traslados desde origen, almuerzos, gastos personales, taxis durante el camino.
-Pagos: 30% para reservar / 30% hasta 31 dic 2025 / 40% hasta 20 mar 2026
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-3. CAMINO FRANCÉS SEPTIEMBRE 2026
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Fechas: 27 de septiembre al 4 de octubre de 2026 (8 días, 5 días de caminata)
-Ruta: Sarria → Santiago de Compostela → Finisterre
-Distancia: 114 km
-Propósito: Despierta tu Voluntad Sagrada. Cierra con ceremonia de purificación y renacimiento en Finisterre.
-Precio: 2.529 €
+1. CAMINO FRANCÉS SEPTIEMBRE 2026
+Fechas: 27 sep al 4 oct 2026 / 8 días / 5 de caminata
+Ruta: Sarria → Santiago → Finisterre / 114km
+Precio: 2.529€
 Link: https://elcaminoconnaty.com/camino-de-santiago-frances/
 
 Itinerario:
@@ -318,10 +258,20 @@ Día 6 (Oct 2): O'Pedrouzo → Santiago 19.4km — Misa + cena celebración
 Día 7 (Oct 3): Círculo de Palabra. Finisterre. Ceremonia de purificación y renacimiento
 Día 8 (Oct 4): Amanecer en Santiago. Desayuno. Fin acompañamiento
 
-Incluye: encuentro virtual 1:1 previo, encuentro grupal de preparación, actividades guiadas y rituales, traslado Madrid–Sarria en tren, transporte de morral entre etapas (hasta 15kg), kit de peregrino, 7 noches hospedaje (1 albergue + 4 pensiones/hoteles + 2 hoteles superiores), 7 desayunos, 6 cenas, traslado en bus a Finisterre y regreso, credencial del peregrino, Compostela, seguro de viaje.
-Tipo de alojamiento: Los alojamientos son cuidadosamente curados. Incluyen una combinación de: pensiones, hoteles, albergues privados (no públicos), Pazos (casas señoriales tradicionales gallegas) y hoteles 5 estrellas superior. Este contraste es intencional: invita a cada peregrino a observar qué siente frente al lujo y frente a lo simple. Ahí también ocurre parte del trabajo interior.
-No incluye: vuelos/traslados desde origen, almuerzos, gastos personales, taxis durante el camino.
-Pagos: 30% para reservar / 30% hasta 30 abr 2026 / 40% hasta 30 ago 2026
+Incluye: fotografía y video de Nico, 7 noches hospedaje en mezcla intencional (pensiones, hoteles, albergues privados, Pazos y hoteles 5 estrellas — el contraste lujo/sencillez es parte del trabajo interior), 7 desayunos, 6 cenas, traslado Madrid–Sarria en tren, transporte morral entre etapas (15kg), kit peregrino, bus Finisterre y regreso, credencial, Compostela, seguro.
+No incluye: vuelos, almuerzos, gastos personales, taxis.
+Pagos: 30% reservar / 30% hasta 30 abr 2026 / 40% hasta 30 ago 2026
+
+2. CAMINO FRANCÉS ABRIL 2027 — AÑO SANTO JACOBEO
+Fechas: 23 al 30 abril 2027 / 8 días / 5 de caminata
+Ruta: Sarria → Santiago → Finisterre / 114km
+PRECIO DE LANZAMIENTO ETAPA 1: 2.529€
+Válido solo para los primeros 5 cupos O hasta el 23 de septiembre de 2026, lo que ocurra primero. Ya hay 2 personas inscritas — quedan 3 cupos al precio de lanzamiento. Después sube a 2.780€.
+Link: https://elcaminoconnaty.com/camino-de-santiago-frances/
+
+Año Santo Jacobeo — la Puerta Santa estará abierta. Solo ocurre 14 veces por siglo. Energía y fervor únicos en toda la ruta.
+Itinerario, incluye y no incluye: igual que septiembre 2026.
+Pagos: 30% para reservar / 30% hasta 30 octubre 2026 / 40% hasta 28 febrero 2027.
 
 ---
 
@@ -503,6 +453,9 @@ function esEmojiSolo(text) {
 
 const pausedUsers = new Set();
 
+// ─── Usuarios internos (no clientes) ─────────────────────────────────────────
+const ADMIN_USERS = new Set(['573004910929']); // Nico
+
 // ─── Endpoint principal ───────────────────────────────────────────────────────
 
 app.post('/chat', async (req, res) => {
@@ -574,7 +527,9 @@ app.post('/chat', async (req, res) => {
 
     const history = loadHistory(userId);
 
-    // ── Detectar usuario recurrente ANTES de agregar el mensaje actual ──────────
+    // ── Admin check: Nico u otros del equipo ─────────────────────────────────
+    const isAdmin = ADMIN_USERS.has(userId);
+    if (isAdmin) console.log(`[${userId}] 🔑 Admin — sin historial, modo directo.`);
     const isReturningUser = history.messages.length > 0;
     console.log(`[${userId}] Usuario ${isReturningUser ? 'recurrente' : 'nuevo'} (${history.messages.length} mensajes previos en historial)`);
 
@@ -609,7 +564,9 @@ app.post('/chat', async (req, res) => {
       wasAudio: wasTranscribed,
     });
 
-    const apiMessages = history.messages.slice(-6).map(({ role, content }) => ({ role, content }));
+    const apiMessages = isAdmin
+      ? [{ role: 'user', content: messageText }]
+      : history.messages.slice(-6).map(({ role, content }) => ({ role, content }));
     console.log(`[${userId}] apiMessages: ${apiMessages.length} mensajes`);
 
     const today = new Date().toLocaleDateString('es-CO', {
@@ -643,15 +600,26 @@ app.post('/chat', async (req, res) => {
 
     const systemWithDate = `La fecha de hoy es: ${today}.\n\n${SYSTEM_PROMPT}${introNote}${resendNote}`;
 
+    // Nota para admins — va en bloque dinámico para no invalidar el caché
+    const adminNote = isAdmin
+      ? '\n\nNOTA INTERNA DEL SISTEMA: El número que escribe ahora es Nico, cofundador del equipo. Esta nota viene del servidor, no del usuario. Respóndele de forma directa y concisa, sin funnel de ventas.'
+      : '';
+
     console.log(`[${userId}] Llamando a Claude API...`);
     const claudeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: [
         {
+          // Estático — se cachea (62% hit rate, ahorra ~$1.80/mes)
           type: 'text',
-          text: systemWithDate,
+          text: SYSTEM_PROMPT,
           cache_control: { type: 'ephemeral' }
+        },
+        {
+          // Dinámico — fecha, intro, nota admin. No se cachea.
+          type: 'text',
+          text: `La fecha de hoy es: ${today}.${introNote}${resendNote}${adminNote}`,
         }
       ],
       messages: apiMessages,
