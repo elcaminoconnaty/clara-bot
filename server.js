@@ -610,6 +610,8 @@ app.post('/chat', async (req, res) => {
     console.log(`[${userId}] Content:`, JSON.stringify(claudeResponse.content));
 
     const textBlock = claudeResponse.content.find(b => b.type === 'text');
+    const claudeUsage = claudeResponse.usage;
+    console.log(`[${userId}] Tokens — input: ${claudeUsage.input_tokens}, output: ${claudeUsage.output_tokens}, cache_read: ${claudeUsage.cache_read_input_tokens || 0}`);
     let assistantText = textBlock ? textBlock.text : '';
 
     if (!assistantText) {
@@ -632,7 +634,7 @@ app.post('/chat', async (req, res) => {
 
     console.log(`[${userId}] Respondido. Total mensajes: ${history.messages.length}`);
 
-    // Formato ManyChat Dynamic Content v2
+    // Formato respuesta n8n
     const responseData = {
       version: 'v2',
       content: {
@@ -644,10 +646,16 @@ app.post('/chat', async (req, res) => {
           },
         ],
       },
+      usage: {
+        input_tokens: claudeUsage.input_tokens,
+        output_tokens: claudeUsage.output_tokens,
+        cache_read_input_tokens: claudeUsage.cache_read_input_tokens || 0,
+        cache_creation_input_tokens: claudeUsage.cache_creation_input_tokens || 0,
+      },
     };
     assistantText = assistantText.replace(/\*\*/g, '').replace(/\*/g, '');
     responseData.content.messages[0].text = assistantText;
-    console.log('RESPUESTA A MANYCHAT:', JSON.stringify(responseData));
+    console.log('RESPUESTA A N8N:', JSON.stringify(responseData));
     res.json(responseData);
 
   } catch (err) {
