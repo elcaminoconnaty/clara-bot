@@ -17,6 +17,14 @@ if (!process.env.OPENAI_API_KEY) {
   console.error('ERROR: Falta OPENAI_API_KEY en el archivo .env');
   process.exit(1);
 }
+if (!process.env.SUPABASE_URL) {
+  console.error('ERROR: Falta SUPABASE_URL en el archivo .env');
+  process.exit(1);
+}
+if (!process.env.SUPABASE_SERVICE_KEY) {
+  console.error('ERROR: Falta SUPABASE_SERVICE_KEY en el archivo .env');
+  process.exit(1);
+}
 
 // ─── Clientes de API ─────────────────────────────────────────────────────────
 
@@ -28,37 +36,64 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-// ─── Historial ────────────────────────────────────────────────────────────────
+// ─── Supabase (historial + estado de pausa) ──────────────────────────────────
 
-const HISTORIAL_FILE = path.join(__dirname, 'conversationHistory.json');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SB_HEADERS = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+};
 
-let allHistory = {};
-
-// Cargar historial desde disco al arrancar
-(function loadAllHistory() {
-  if (fs.existsSync(HISTORIAL_FILE)) {
-    try {
-      allHistory = JSON.parse(fs.readFileSync(HISTORIAL_FILE, 'utf8'));
-      console.log(`[historial] Cargado desde disco. Usuarios: ${Object.keys(allHistory).length}`);
-    } catch {
-      console.warn('[historial] Archivo corrupto, iniciando vacío.');
-      allHistory = {};
-    }
-  } else {
-    console.log('[historial] No existe archivo previo. Iniciando vacío.');
-  }
-})();
-
-function loadHistory(userId) {
-  if (!allHistory[userId]) {
-    allHistory[userId] = { userId, messages: [], createdAt: new Date().toISOString() };
-  }
-  return allHistory[userId];
+// Últimas 25 entradas de messages, ordenadas ASC para enviar a Claude.
+async function fetchHistory(userId) {
+  const url = `${SUPABASE_URL}/rest/v1/messages`
+    + `?conversation_id=eq.${encodeURIComponent(userId)}`
+    + `&select=role,content,created_at`
+    + `&order=created_at.desc&limit=25`;
+  const r = await fetch(url, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase fetchHistory ${r.status}: ${await r.text()}`);
+  const rows = await r.json();
+  return rows.reverse();
 }
 
-function saveHistory(userId, history) {
-  allHistory[userId] = history;
-  fs.writeFileSync(HISTORIAL_FILE, JSON.stringify(allHistory, null, 2), 'utf8');
+async function isPaused(userId) {
+  const url = `${SUPABASE_URL}/rest/v1/conversations`
+    + `?user_id=eq.${encodeURIComponent(userId)}&select=status`;
+  try {
+    const r = await fetch(url, { headers: SB_HEADERS });
+    if (!r.ok) return false;
+    const rows = await r.json();
+    return rows[0]?.status === 'naty';
+  } catch (err) {
+    console.warn(`[${userId}] isPaused fail-open por error Supabase:`, err.message);
+    return false;
+  }
+}
+
+// Upsert por user_id. Si la fila no existe, la crea con channel='whatsapp' por default.
+async function setPaused(userId, paused) {
+  const url = `${SUPABASE_URL}/rest/v1/conversations`;
+  const body = JSON.stringify({
+    user_id: userId,
+    status: paused ? 'naty' : 'clara',
+  });
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+    body,
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Supabase setPaused ${r.status}: ${txt}`);
+  }
+}
+
+async function deleteHistory(userId) {
+  const url = `${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${encodeURIComponent(userId)}`;
+  const r = await fetch(url, { method: 'DELETE', headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase deleteHistory ${r.status}: ${await r.text()}`);
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
@@ -490,23 +525,15 @@ Clara solo responde temas relacionados con el Camino de Santiago, El Camino con 
 
 const INSCRIPCION_REGEX = /\[INSCRIPCION_LISTA\|nombre:([^\|]+)\|viaje:([^\]]+)\]/;
 
-function procesarInscripcion(userId, history, responseText) {
+function procesarInscripcion(userId, responseText) {
   const match = responseText.match(INSCRIPCION_REGEX);
   if (!match) return responseText;
 
   const nombre = match[1].trim();
   const viaje = match[2].trim();
 
-  // Guardar nota en el historial
-  history.inscripcionLista = {
-    fecha: new Date().toISOString(),
-    nombre,
-    viaje,
-  };
-
   console.log(`[${userId}] ✅ LISTO PARA INSCRIBIRSE — ${nombre} → ${viaje}`);
 
-  // Devolver la respuesta limpia, sin la marca del sistema
   return responseText.replace(INSCRIPCION_REGEX, '').trim();
 }
 
@@ -547,9 +574,8 @@ function esEmojiSolo(text) {
   return stripped.length === 0 && text.trim().length > 0;
 }
 
-// ─── Pausa: Naty toma el control ──────────────────────────────────────────────
-
-const pausedUsers = new Set();
+// ─── Pausa ────────────────────────────────────────────────────────────────────
+// Persistida en Supabase: conversations.status. 'clara' = activa / 'naty' = pausada.
 
 // ─── Usuarios internos (no clientes) ─────────────────────────────────────────
 const ADMIN_USERS = new Set(['573004910929']); // Nico
@@ -596,84 +622,72 @@ app.post('/chat', async (req, res) => {
       return res.status(400).json({ error: 'Se requiere "message" o "audioBase64".' });
     }
 
-    // ── CAMBIO 2: Comandos de pausa Naty/Clara (antes de cualquier otra lógica) ─
+    // ── Comandos de pausa Naty/Clara (antes de cualquier otra lógica) ───────────
     const msgNorm = messageText.trim().toLowerCase();
     const emptyResponse = { version: 'v2', content: { type: 'instagram', messages: [] } };
 
     if (msgNorm === 'hola te habla naty') {
-      pausedUsers.add(userId);
-      console.log(`[${userId}] "hola te habla naty" — conversación pausada.`);
+      await setPaused(userId, true);
+      console.log(`[${userId}] "hola te habla naty" — conversación pausada (status='naty').`);
       return res.json(emptyResponse);
     }
 
     if (msgNorm === 'te responde clara') {
-      pausedUsers.delete(userId);
-      console.log(`[${userId}] "te responde clara" — Clara reactivada.`);
+      await setPaused(userId, false);
+      console.log(`[${userId}] "te responde clara" — Clara reactivada (status='clara').`);
       return res.json(emptyResponse);
     }
 
-    if (pausedUsers.has(userId)) {
-      console.log(`[${userId}] Conversación pausada por Naty — ignorando mensaje.`);
-      return res.json(emptyResponse);
-    }
-
-    // ── CAMBIO 1: Ignorar mensajes que son solo emojis (reacciones a historias) ─
+    // Ignorar mensajes que son solo emojis (reacciones a historias)
     if (esEmojiSolo(messageText)) {
       console.log(`[${userId}] Emoji solo detectado — ignorando sin responder.`);
       return res.json(emptyResponse);
     }
 
-    const history = loadHistory(userId);
-
     // ── Admin check: Nico u otros del equipo ─────────────────────────────────
     const isAdmin = ADMIN_USERS.has(userId);
     if (isAdmin) console.log(`[${userId}] 🔑 Admin — sin historial, modo directo.`);
-    const isReturningUser = history.messages.length > 0;
-    console.log(`[${userId}] Usuario ${isReturningUser ? 'recurrente' : 'nuevo'} (${history.messages.length} mensajes previos en historial)`);
 
-    // ── FIX 1: Detectar si el último mensaje de Clara no fue confirmado ─────────
-    // Si el último mensaje en el historial es del assistant y tiene delivered:false,
-    // significa que probablemente no llegó al usuario. Lo reenviamos primero.
-    const lastMsg = history.messages[history.messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.delivered === false) {
-      const timeSinceMs = Date.now() - new Date(lastMsg.timestamp).getTime();
-      const timeSinceSec = Math.round(timeSinceMs / 1000);
-      console.log(`[${userId}] ⚠️ Último mensaje de Clara no confirmado (hace ${timeSinceSec}s). Reenviando antes de responder.`);
+    // ── Cargar historial (Supabase) y estado de pausa en paralelo ───────────
+    const [history, paused] = await Promise.all([
+      isAdmin ? Promise.resolve([]) : fetchHistory(userId),
+      isPaused(userId),
+    ]);
 
-      // Marcamos como confirmado ahora que el usuario volvió a escribir
-      lastMsg.delivered = true;
-
-      // Inyectamos una nota al system prompt para que Clara lo reenvíe primero
-      history._pendingResend = lastMsg.content;
+    if (paused) {
+      console.log(`[${userId}] Conversación pausada por Naty — ignorando mensaje.`);
+      return res.json(emptyResponse);
     }
 
-    // Marcar el mensaje anterior del assistant como confirmado porque el usuario respondió
-    // (si había quedado como pendiente de confirmación)
-    history.messages.forEach(m => {
-      if (m.role === 'assistant' && m.delivered === false) {
-        m.delivered = true;
-      }
-    });
+    const isReturningUser = history.length > 0;
+    console.log(`[${userId}] Usuario ${isReturningUser ? 'recurrente' : 'nuevo'} (${history.length} mensajes previos en Supabase)`);
 
-    history.messages.push({
-      role: 'user',
-      content: messageText,
-      timestamp: new Date().toISOString(),
-      wasAudio: wasTranscribed,
-    });
+    // ── delivered:false derivado: si el último mensaje en DB es del assistant,
+    // significa que el usuario no había vuelto a escribir, así que el mensaje
+    // anterior puede no haber llegado. Le pedimos a Clara que lo reintegre.
+    const lastMsg = history[history.length - 1];
+    let pendingResend = null;
+    if (lastMsg && lastMsg.role === 'assistant') {
+      const timeSinceMs = Date.now() - new Date(lastMsg.created_at).getTime();
+      const timeSinceSec = Math.round(timeSinceMs / 1000);
+      console.log(`[${userId}] ⚠️ Último msg en DB es de Clara (hace ${timeSinceSec}s) — posible no entrega. Pidiendo a Claude que reintegre.`);
+      pendingResend = lastMsg.content;
+    }
 
+    // apiMessages: historial + mensaje actual (no escribimos en DB; n8n lo hace después)
     const apiMessages = isAdmin
       ? [{ role: 'user', content: messageText }]
-      : history.messages.slice(-6).map(({ role, content }) => ({ role, content }));
+      : [
+          ...history.map(({ role, content }) => ({ role, content })),
+          { role: 'user', content: messageText },
+        ].slice(-6);
     console.log(`[${userId}] apiMessages: ${apiMessages.length} mensajes`);
 
     const today = new Date().toLocaleDateString('es-CO', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
     });
 
-    // ── FIX 2: Leer el contenido del mensaje para decidir si presentarse ────────
-    // Si el usuario NO está saludando (ej: responde algo concreto, hace una pregunta
-    // sobre viajes, etc.), Clara no debe presentarse aunque sea "nuevo" en historial.
+    // ── Decidir si Clara se presenta o no según el contenido ────────────────
     const saludosRegex = /^(hola|hi|hey|buenas|buen día|buenos días|buenas tardes|buenas noches|saludos|qué tal|como estas|cómo estás|ola)\b/i;
     const esSaludo = saludosRegex.test(messageText);
     const esMensajeSuelto = !esSaludo && messageText.split(' ').length > 3;
@@ -682,21 +696,15 @@ app.post('/chat', async (req, res) => {
     if (isReturningUser) {
       introNote = '\n\nYa llevas un rato hablando con esta persona. Continúa la conversación de forma natural sin presentarte de nuevo.';
     } else if (esMensajeSuelto) {
-      // Primer mensaje pero no es un saludo — parece que viene de una conversación previa
-      // o simplemente entró directo con una pregunta. Clara responde sin presentación larga.
       introNote = '\n\nEsta persona te escribió directo con una pregunta o comentario sin saludar. Responde naturalmente y de forma directa a lo que preguntó, sin presentarte desde cero ni hacer un saludo largo. Puedes mencionar tu nombre solo si encaja de forma natural.';
     } else {
       introNote = '\n\nEs tu primer mensaje con esta persona y te está saludando. Preséntate brevemente como Clara, la asistente de Naty para responder las primeras dudas, y menciona que puedes tardar unos segundos en responder.';
     }
 
-    // ── FIX 1 (cont): Si había mensaje pendiente de entrega, avisarle a Clara ───
     let resendNote = '';
-    if (history._pendingResend) {
-      resendNote = `\n\nIMPORTANTE: Tu respuesta anterior probablemente no le llegó a esta persona (problema técnico de entrega). Tu respuesta anterior fue: "${history._pendingResend}". Puedes reenviar ese mensaje o integrarlo naturalmente en tu respuesta actual, sin explicar que hubo un problema técnico a menos que el usuario lo mencione.`;
-      delete history._pendingResend;
+    if (pendingResend) {
+      resendNote = `\n\nIMPORTANTE: Tu respuesta anterior probablemente no le llegó a esta persona (problema técnico de entrega). Tu respuesta anterior fue: "${pendingResend}". Puedes reenviar ese mensaje o integrarlo naturalmente en tu respuesta actual, sin explicar que hubo un problema técnico a menos que el usuario lo mencione.`;
     }
-
-    const systemWithDate = `La fecha de hoy es: ${today}.\n\n${SYSTEM_PROMPT}${introNote}${resendNote}`;
 
     // Nota para admins — va en bloque dinámico para no invalidar el caché
     const adminNote = isAdmin
@@ -723,7 +731,6 @@ app.post('/chat', async (req, res) => {
       messages: apiMessages,
     });
     console.log(`[${userId}] Respuesta de Claude recibida. stop_reason: ${claudeResponse.stop_reason}, content blocks: ${claudeResponse.content.length}`);
-    console.log(`[${userId}] Content:`, JSON.stringify(claudeResponse.content));
 
     const textBlock = claudeResponse.content.find(b => b.type === 'text');
     const claudeUsage = claudeResponse.usage;
@@ -735,32 +742,14 @@ app.post('/chat', async (req, res) => {
       assistantText = 'Hola, soy Clara del equipo de El Camino con Naty y Nico. ¿En qué puedo ayudarte?';
     }
 
-    // Detectar si el lead está listo para inscribirse y procesar la marca
-    assistantText = procesarInscripcion(userId, history, assistantText);
+    assistantText = procesarInscripcion(userId, assistantText);
+    assistantText = assistantText.replace(/\*\*/g, '').replace(/\*/g, '');
 
-    // ── FIX 1 (cont): Guardar respuesta como no confirmada hasta que el usuario vuelva a escribir
-    history.messages.push({
-      role: 'assistant',
-      content: assistantText,
-      timestamp: new Date().toISOString(),
-      delivered: false, // se marcará true cuando el usuario envíe el próximo mensaje
-    });
-
-    saveHistory(userId, history);
-
-    console.log(`[${userId}] Respondido. Total mensajes: ${history.messages.length}`);
-
-    // Formato respuesta n8n
     const responseData = {
       version: 'v2',
       content: {
         type: 'instagram',
-        messages: [
-          {
-            type: 'text',
-            text: assistantText,
-          },
-        ],
+        messages: [{ type: 'text', text: assistantText }],
       },
       usage: {
         input_tokens: claudeUsage.input_tokens,
@@ -769,8 +758,6 @@ app.post('/chat', async (req, res) => {
         cache_creation_input_tokens: claudeUsage.cache_creation_input_tokens || 0,
       },
     };
-    assistantText = assistantText.replace(/\*\*/g, '').replace(/\*/g, '');
-    responseData.content.messages[0].text = assistantText;
     console.log('RESPUESTA A N8N:', JSON.stringify(responseData));
     res.json(responseData);
 
@@ -796,8 +783,17 @@ app.post('/chat', async (req, res) => {
 
 // ─── Endpoint de pausa ───────────────────────────────────────────────────────
 
-app.get('/paused', (_req, res) => {
-  res.json({ pausedUsers: [...pausedUsers] });
+app.get('/paused', async (_req, res) => {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/conversations?status=eq.naty&select=user_id`;
+    const r = await fetch(url, { headers: SB_HEADERS });
+    if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+    const rows = await r.json();
+    res.json({ pausedUsers: rows.map(x => x.user_id) });
+  } catch (err) {
+    console.error('[/paused] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Endpoint de salud ────────────────────────────────────────────────────────
@@ -808,19 +804,25 @@ app.get('/health', (_req, res) => {
 
 // ─── Endpoints de historial ───────────────────────────────────────────────────
 
-app.get('/historial/:userId', (req, res) => {
-  const history = loadHistory(req.params.userId);
-  res.json(history);
+app.get('/historial/:userId', async (req, res) => {
+  try {
+    const messages = await fetchHistory(req.params.userId);
+    res.json({ userId: req.params.userId, messages });
+  } catch (err) {
+    console.error('[/historial GET] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.delete('/historial/:userId', (req, res) => {
-  const { userId } = req.params;
-  if (allHistory[userId]) {
-    delete allHistory[userId];
-    fs.writeFileSync(HISTORIAL_FILE, JSON.stringify(allHistory, null, 2), 'utf8');
+app.delete('/historial/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await deleteHistory(userId);
+    await setPaused(userId, false); // resetea status a 'clara'
     res.json({ message: `Historial de ${userId} eliminado.` });
-  } else {
-    res.status(404).json({ error: 'No existe historial para ese usuario.' });
+  } catch (err) {
+    console.error('[/historial DELETE] Error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
