@@ -63,12 +63,12 @@ async function isPaused(userId) {
     + `?user_id=eq.${encodeURIComponent(userId)}&select=status`;
   try {
     const r = await fetch(url, { headers: SB_HEADERS });
-    if (!r.ok) return false;
+    if (!r.ok) return true;          // fail-CLOSED: no responder ante incertidumbre
     const rows = await r.json();
     return rows[0]?.status === 'naty';
   } catch (err) {
-    console.warn(`[${userId}] isPaused fail-open por error Supabase:`, err.message);
-    return false;
+    console.warn(`[${userId}] isPaused fail-CLOSED por error Supabase:`, err.message);
+    return true;
   }
 }
 
@@ -637,18 +637,28 @@ app.post('/chat', async (req, res) => {
     }
 
     // ── Comandos de pausa Naty/Clara (antes de cualquier otra lógica) ───────────
-    const msgNorm = messageText.trim().toLowerCase();
+    // Normaliza: minúsculas, sin tildes, sin puntuación, espacios colapsados.
+    const msgNorm = messageText
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^\w\sñ]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     const emptyResponse = { version: 'v2', content: { type: 'instagram', messages: [] } };
 
-    if (msgNorm === 'hola te habla naty') {
+    const PAUSA_REGEX   = /\b(hola[\s,]+)?te\s+habla\s+naty\b/i;
+    const REANUDA_REGEX = /\bte\s+responde\s+clara\b/i;
+
+    if (PAUSA_REGEX.test(msgNorm)) {
       await setPaused(userId, true);
-      console.log(`[${userId}] "hola te habla naty" — conversación pausada (status='naty').`);
+      console.log(`[${userId}] PAUSA detectada ("${messageText}") — status='naty'.`);
       return res.json(emptyResponse);
     }
 
-    if (msgNorm === 'te responde clara') {
+    if (REANUDA_REGEX.test(msgNorm)) {
       await setPaused(userId, false);
-      console.log(`[${userId}] "te responde clara" — Clara reactivada (status='clara').`);
+      console.log(`[${userId}] REANUDACION detectada ("${messageText}") — status='clara'.`);
       return res.json(emptyResponse);
     }
 
@@ -806,6 +816,57 @@ app.get('/paused', async (_req, res) => {
     res.json({ pausedUsers: rows.map(x => x.user_id) });
   } catch (err) {
     console.error('[/paused] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Endpoint de intervención (n8n llama acá cuando detecta echo/status de Naty) ──
+// Body: { userId, message?, channel, source: 'naty' | 'clara_resume', externalMessageId? }
+// 'naty'         → pausa la conversación (status='naty') y siembra el mensaje si viene texto.
+// 'clara_resume' → reactiva Clara (status='clara').
+
+app.post('/intervention', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    const { userId, message, channel, source, externalMessageId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    const isResume = source === 'clara_resume';
+    await setPaused(userId, !isResume);
+
+    if (message && typeof message === 'string') {
+      await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+        method: 'POST',
+        headers: SB_HEADERS,
+        body: JSON.stringify({
+          conversation_id: userId,
+          role: 'assistant',
+          content: message,
+          sent_by: isResume ? 'clara' : 'naty',
+          external_message_id: externalMessageId || null,
+        }),
+      });
+    }
+
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        user_id: userId,
+        channel: channel || 'unknown',
+        status: isResume ? 'clara' : 'naty',
+        last_message_at: new Date().toISOString(),
+      }),
+    });
+
+    console.log(`[/intervention] ${userId} → ${isResume ? 'RESUMED (clara)' : 'PAUSED (naty)'} | channel=${channel}`);
+    res.json({ ok: true, paused: !isResume });
+  } catch (err) {
+    console.error('[/intervention] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
