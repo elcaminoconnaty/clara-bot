@@ -46,6 +46,27 @@ const SB_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+// ─── Dedup de mensajes entrantes (anti-retry de Meta) ────────────────────────
+// Si Meta no recibe 200 a un webhook, reintenta el mismo evento varias veces.
+// Sin idempotencia Clara respondería a cada reintento (spam). Cache en memoria
+// con TTL corto: si el mismo {userId, message} llega dos veces seguidas, el
+// segundo se ignora.
+const DEDUP_TTL_MS = 30_000;
+const dedupCache = new Map(); // key: `${userId}|${message}`, value: expiresAt (ms)
+
+function isRecentDuplicate(userId, message) {
+  if (!userId || !message) return false;
+  const now = Date.now();
+  if (dedupCache.size > 500) {
+    for (const [k, exp] of dedupCache) if (exp <= now) dedupCache.delete(k);
+  }
+  const key = `${userId}|${message}`;
+  const exp = dedupCache.get(key);
+  if (exp && exp > now) return true;
+  dedupCache.set(key, now + DEDUP_TTL_MS);
+  return false;
+}
+
 // Últimas 25 entradas de messages, ordenadas ASC para enviar a Claude.
 async function fetchHistory(userId) {
   const url = `${SUPABASE_URL}/rest/v1/messages`
@@ -634,6 +655,13 @@ app.post('/chat', async (req, res) => {
 
     if (!messageText) {
       return res.status(400).json({ error: 'Se requiere "message" o "audioBase64".' });
+    }
+
+    // ── Dedup: si el mismo {userId, message} llega dentro de 30s, ignorar.
+    // Previene spam cuando Meta reintenta webhooks no confirmados.
+    if (isRecentDuplicate(userId, messageText)) {
+      console.log(`[${userId}] DUPLICADO descartado (mismo texto en <${DEDUP_TTL_MS / 1000}s): "${messageText.slice(0, 60)}"`);
+      return res.json({ version: 'v2', content: { type: 'instagram', messages: [] } });
     }
 
     // ── Comandos de pausa Naty/Clara (antes de cualquier otra lógica) ───────────
