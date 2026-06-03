@@ -117,6 +117,21 @@ async function deleteHistory(userId) {
   if (!r.ok) throw new Error(`Supabase deleteHistory ${r.status}: ${await r.text()}`);
 }
 
+// Marca el estado de remarketing de una conversación (ej. 'opted_out' cuando piden BAJA).
+async function setRemarketingStage(userId, stage) {
+  const url = `${SUPABASE_URL}/rest/v1/conversations?user_id=eq.${encodeURIComponent(userId)}`;
+  try {
+    const r = await fetch(url, {
+      method: 'PATCH',
+      headers: { ...SB_HEADERS, Prefer: 'return=minimal' },
+      body: JSON.stringify({ remarketing_stage: stage }),
+    });
+    if (!r.ok) console.warn(`[${userId}] setRemarketingStage ${r.status}: ${await r.text()}`);
+  } catch (err) {
+    console.warn(`[${userId}] setRemarketingStage error:`, err.message);
+  }
+}
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `
@@ -709,6 +724,20 @@ app.post('/chat', async (req, res) => {
     if (paused) {
       console.log(`[${userId}] Conversación pausada por Naty — ignorando mensaje.`);
       return res.json(emptyResponse);
+    }
+
+    // ── Opt-out de remarketing: si pide BAJA o dice claramente que no le interesa,
+    // marcamos opted_out para no volver a contactarlo y cerramos con calidez.
+    // (msgNorm ya está en minúsculas, sin tildes ni puntuación.)
+    const OPTOUT_EXACT = /^(baja|stop|no gracias|no me interesa)$/;
+    const OPTOUT_PHRASE = /(no quiero (recibir|mas mensajes|que me escriban|que me contacten)|dejen de escribir|no me escriban|no me manden mensajes|darme de baja|dar de baja|quiten?me de la lista|borren mi)/;
+    if (OPTOUT_EXACT.test(msgNorm) || OPTOUT_PHRASE.test(msgNorm)) {
+      await setRemarketingStage(userId, 'opted_out');
+      console.log(`[${userId}] OPT-OUT detectado ("${messageText}") — remarketing_stage='opted_out'.`);
+      return res.json({
+        version: 'v2',
+        content: { type: 'instagram', messages: [{ type: 'text', text: 'Listo, no te enviaré más mensajes 🙏 Si algún día quieres retomar la idea del Camino, aquí estaré con gusto. ¡Un abrazo!' }] },
+      });
     }
 
     const isReturningUser = history.length > 0;
