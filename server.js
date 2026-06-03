@@ -937,6 +937,7 @@ app.post('/remarketing', async (req, res) => {
     });
 
     const followupNote =
+      `[INSTRUCCIÓN INTERNA DEL SISTEMA — esto NO es un mensaje del cliente, no lo respondas como tal]\n\n` +
       `La fecha de hoy es: ${today}.\n\n` +
       `MODO REACTIVACIÓN (remarketing). Esta persona te escribió hace menos de un día y la ` +
       `conversación quedó en pausa sin que respondiera a tu último mensaje. Tu tarea es decidir si ` +
@@ -955,6 +956,14 @@ app.post('/remarketing', async (req, res) => {
       `cero, no te presentes de nuevo, no repitas literal lo que ya dijiste, no suenes a publicidad ni a ` +
       `bot automático, no uses asteriscos ni markdown. No escribas nada antes de SEND| ni después del mensaje.`;
 
+    // El historial termina con un mensaje del assistant (la persona se quedó callada).
+    // Para que Claude genere una respuesta FRESCA — y no "continúe" el último turno de
+    // Clara como prefill — los mensajes deben terminar en un turno 'user'. Añadimos la
+    // directiva de reactivación como ese turno final, conservando el contexto reciente.
+    const convo = history.map(({ role, content }) => ({ role, content })).slice(-6);
+    while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
+    convo.push({ role: 'user', content: followupNote });
+
     const claudeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 400,
@@ -967,10 +976,10 @@ app.post('/remarketing', async (req, res) => {
         },
         {
           type: 'text',
-          text: followupNote,
+          text: `La fecha de hoy es: ${today}.`,
         },
       ],
-      messages: history.map(({ role, content }) => ({ role, content })).slice(-6),
+      messages: convo,
     });
 
     const textBlock = claudeResponse.content.find(b => b.type === 'text');
