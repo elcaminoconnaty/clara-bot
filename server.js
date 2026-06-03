@@ -899,6 +899,114 @@ app.post('/intervention', async (req, res) => {
   }
 });
 
+// ─── Endpoint de remarketing (n8n lo llama desde el workflow de re-engagement) ──
+// Body: { userId, channel }. Genera UN mensaje de reactivación contextual.
+// NO envía ni escribe en DB — eso lo hace n8n tras confirmar el envío.
+// Respuesta: { action:'send', message, channel, lead_temp, usage } | { action:'skip', reason }
+//
+// Doble capa de calificación: el RPC en Supabase ya filtra lo barato (handoff por
+// número, pausa, opt-out, ventana). Acá Clara da el juicio final por contexto y, si
+// procede, clasifica la temperatura del lead.
+
+app.post('/remarketing', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    const { userId, channel } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+    // Fail-safes: el estado pudo cambiar entre el RPC y esta llamada.
+    if (ADMIN_USERS.has(userId)) return res.json({ action: 'skip', reason: 'admin' });
+
+    const [history, paused] = await Promise.all([fetchHistory(userId), isPaused(userId)]);
+    if (paused) return res.json({ action: 'skip', reason: 'paused' });            // Naty interviniendo
+    if (!history.length) return res.json({ action: 'skip', reason: 'no_history' });
+
+    // Carrera con el flujo reactivo: si el usuario ya respondió entre el RPC y ahora,
+    // el último mensaje del historial ya no es del assistant → no reactivar.
+    const last = history[history.length - 1];
+    if (!last || last.role !== 'assistant') {
+      return res.json({ action: 'skip', reason: 'user_replied' });
+    }
+
+    const today = new Date().toLocaleDateString('es-CO', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
+    });
+
+    const followupNote =
+      `La fecha de hoy es: ${today}.\n\n` +
+      `MODO REACTIVACIÓN (remarketing). Esta persona te escribió hace menos de un día y la ` +
+      `conversación quedó en pausa sin que respondiera a tu último mensaje. Tu tarea es decidir si ` +
+      `vale la pena reactivarla y, si sí, escribir UN solo mensaje de seguimiento.\n\n` +
+      `Primero evalúa el historial. Si la conversación YA cerró bien y NO se debe reactivar — porque ` +
+      `ya le pasaste el contacto (número) de Naty o Nico, porque ya es cliente, porque dijo que no le ` +
+      `interesa, o porque no es un lead real (spam / fuera de tema) — responde EXACTAMENTE con una sola línea:\n` +
+      `SKIP|motivo\n` +
+      `(motivo es una sola palabra: handoff, cliente, no_interesado o no_lead).\n\n` +
+      `Si SÍ vale la pena reactivarla, responde EXACTAMENTE con este formato, empezando por SEND|:\n` +
+      `SEND|temperatura|mensaje\n` +
+      `temperatura = caliente (preguntó precio/fechas/cómo reservar y se quedó callado), tibio ("lo ` +
+      `pienso", lo consulta con alguien, objeción suave) o frio (solo saludó o pregunta vaga). El mensaje ` +
+      `debe ser breve y natural (máximo 2-3 líneas, menos de 400 caracteres), retomando con calidez justo ` +
+      `su última duda o el punto donde se quedó, con UNA sola pregunta abierta al final. No saludes desde ` +
+      `cero, no te presentes de nuevo, no repitas literal lo que ya dijiste, no suenes a publicidad ni a ` +
+      `bot automático, no uses asteriscos ni markdown. No escribas nada antes de SEND| ni después del mensaje.`;
+
+    const claudeResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      system: [
+        {
+          // Mismo bloque estático cacheado que /chat → comparte cache hits.
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+        {
+          type: 'text',
+          text: followupNote,
+        },
+      ],
+      messages: history.map(({ role, content }) => ({ role, content })).slice(-6),
+    });
+
+    const textBlock = claudeResponse.content.find(b => b.type === 'text');
+    const raw = (textBlock ? textBlock.text : '').trim();
+    const usage = {
+      input_tokens: claudeResponse.usage.input_tokens,
+      output_tokens: claudeResponse.usage.output_tokens,
+      cache_read_input_tokens: claudeResponse.usage.cache_read_input_tokens || 0,
+      cache_creation_input_tokens: claudeResponse.usage.cache_creation_input_tokens || 0,
+    };
+
+    if (/^SKIP/i.test(raw)) {
+      const reason = (raw.split('|')[1] || 'cerrada').trim().toLowerCase();
+      console.log(`[/remarketing] ${userId} → SKIP (${reason})`);
+      return res.json({ action: 'skip', reason, usage });
+    }
+
+    let leadTemp = null;
+    let message = raw;
+    const m = raw.match(/^SEND\s*\|\s*(caliente|tibio|frio)\s*\|([\s\S]*)$/i);
+    if (m) {
+      leadTemp = m[1].toLowerCase();
+      message = m[2].trim();
+    }
+    message = message.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+    if (!message) return res.json({ action: 'skip', reason: 'empty_generation', usage });
+    if (message.length > 600) message = message.slice(0, 600);
+
+    console.log(`[/remarketing] ${userId} → SEND (${leadTemp || '?'}) ch=${channel}: "${message.slice(0, 60)}"`);
+    return res.json({ action: 'send', channel: channel || 'whatsapp', message, lead_temp: leadTemp, usage });
+  } catch (err) {
+    console.error('[/remarketing] Error:', err.message);
+    return res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 // ─── Endpoint de salud ────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
