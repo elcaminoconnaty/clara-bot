@@ -1045,6 +1045,56 @@ app.post('/remarketing', async (req, res) => {
   }
 });
 
+// ─── Reporte diario de remarketing a Telegram ────────────────────────────────
+// Cuenta cuántas conversaciones se reactivaron (remarketing) en las últimas 24h y
+// envía un resumen al bot de Telegram del admin. Lo usa el agendador (6pm COT) y
+// el endpoint GET /remarketing/report (para disparo manual / pruebas).
+
+async function buildAndSendRemarketingReport() {
+  const token = process.env.TELEGRAM_ALERT_TOKEN;
+  const chat = process.env.TELEGRAM_ALERT_CHAT;
+
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/remarketing_report_24h`, {
+    method: 'POST',
+    headers: SB_HEADERS,
+    body: '{}',
+  });
+  if (!r.ok) throw new Error(`report rpc ${r.status}: ${await r.text()}`);
+  const rows = await r.json();
+  const c = rows[0] || { reactivadas: 0, ig: 0, wa: 0, respondieron: 0 };
+
+  const hora = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+  const text =
+    `📊 *Reporte Remarketing (últimas 24h)*\n\n` +
+    `🔄 Conversaciones reactivadas: *${c.reactivadas}*\n` +
+    `   📷 Instagram: ${c.ig}\n` +
+    `   📱 WhatsApp: ${c.wa}\n` +
+    `💬 Respondieron: *${c.respondieron}*\n\n` +
+    `🕐 ${hora}`;
+
+  if (token && chat) {
+    const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text, parse_mode: 'Markdown' }),
+    });
+    if (!tg.ok) console.warn('[reporte] Telegram error:', tg.status, await tg.text());
+  } else {
+    console.warn('[reporte] Falta TELEGRAM_ALERT_TOKEN o TELEGRAM_ALERT_CHAT.');
+  }
+  return c;
+}
+
+app.get('/remarketing/report', async (_req, res) => {
+  try {
+    const c = await buildAndSendRemarketingReport();
+    res.json({ ok: true, ...c });
+  } catch (err) {
+    console.error('[/remarketing/report] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Endpoint de salud ────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
@@ -1086,6 +1136,23 @@ setInterval(async () => {
     console.warn('[ping] Self-ping falló:', err.message);
   }
 }, 14 * 60 * 1000); // cada 14 minutos
+
+// ─── Reporte diario de remarketing (6pm hora Colombia) ───────────────────────
+let lastReportDay = null;
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const bogHour = Number(now.toLocaleString('en-US', { timeZone: 'America/Bogota', hour: '2-digit', hour12: false }));
+    const bogDay = now.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }); // YYYY-MM-DD
+    if (bogHour === 18 && lastReportDay !== bogDay) {
+      lastReportDay = bogDay;
+      const c = await buildAndSendRemarketingReport();
+      console.log('[reporte] Reporte diario enviado a Telegram:', JSON.stringify(c));
+    }
+  } catch (err) {
+    console.warn('[reporte] Error en agendador:', err.message);
+  }
+}, 10 * 60 * 1000); // revisa cada 10 minutos
 
 // ─── Iniciar servidor ─────────────────────────────────────────────────────────
 
