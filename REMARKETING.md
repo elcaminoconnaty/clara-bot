@@ -225,6 +225,11 @@ Falta reasignar 7 credenciales + publish (ver checklist abajo).
 ## 7. Operación
 
 ### Monitorear
+- **Reporte diario a Telegram (6pm COT):** Clara envía al bot de alertas (chat
+  `8043966223`) cuántas conversaciones se reactivaron en 24h (total, IG, WA,
+  respondieron). Agendador en server.js (`buildAndSendRemarketingReport`, env vars
+  `TELEGRAM_ALERT_TOKEN`/`TELEGRAM_ALERT_CHAT`). RPC `remarketing_report_24h()`.
+  Disparo manual: `GET https://clara-bot-production-b2ca.up.railway.app/remarketing/report`.
 - Ejecuciones: n8n → workflow `AZAZ1Opzn0ntCmua` → Executions. Una corrida que
   envía dura ~12s+ por mensaje (pacing); las vacías ~2s.
 - Quién ya fue contactado:
