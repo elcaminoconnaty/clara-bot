@@ -161,31 +161,35 @@ rama. Workflow quedó en 9 nodos (versión `ed97804f`). Probado en vivo con el l
 
 ---
 
-## 6. Fase 2 — Plantillas de WhatsApp (en preparación)
+## 6. Fase 2 — Plantillas de WhatsApp (ACTIVA desde 2026-06-05)
 
-Para el backlog fuera de ventana (~300 conversaciones WA elegibles). **Bloqueado
-hasta que Meta apruebe las plantillas.** Pago de WhatsApp ya configurado.
+Para el backlog fuera de ventana. **Plantillas aprobadas y workflow ACTIVO.**
+Backlog sembrado: **278 conversaciones WA** (channel=whatsapp, status=clara,
+stage=none→window, último msg=assistant, sin admin/handoff/optout). Primera ronda
+el 2026-06-05 10am COT. Pago de WhatsApp configurado.
 
-### 6.1 Plantillas (v2, tono humano) — crear en WABA `886940637640404`
-**`reactivacion_camino_1`** (+2d):
-> Hola 😊 Te escribo de El Camino con Naty. El otro día estuvimos hablando del
-> Camino de Santiago y se nos quedó la conversación por ahí. Me quedé con la duda
-> de si todavía le estás dando vueltas a la idea. Si quieres, seguimos charlando
-> con calma, sin afán.
-> Pie: `Si prefieres no recibir más mensajes, escribe BAJA.` · Botones: `Sí, sigamos` · `Ahora no`
+### 6.1 Plantillas — TEXTOS REALES APROBADOS (WABA `886940637640404`, confirmados por el dueño 2026-06-05)
+Estos son los textos exactos aprobados en Meta (distintos a los borradores v2). El nodo
+`Registrar tpl_N` los inserta en `messages` al enviar (ver §6.3).
 
-**`reactivacion_camino_2`** (+7d):
-> Hola, ¿cómo vas? 😊 Soy Clara, de El Camino con Naty. Sé que un viaje así no se
-> decide de un día para otro, tranquilo. Te escribo solo para recordarte que aquí
-> seguimos y que los cupos se van moviendo. Si te animas a retomarlo, te acompaño
-> con gusto.
-> Pie: `Si prefieres no recibir más mensajes, escribe BAJA.` · Botones: `Cuéntame` · `Ahora no`
+**`reactivacion_camino_1_2_dias`** (+2d, idioma `es`):
+> Hola, cómo estás?
+> Paso por aquí para retomar nuestra conversación sobre el Camino de Santiago.
+> Si te quedó alguna duda o hay algo sobre lo que te gustaría profundizar, déjanos saber para ayudarte; o si por ahora decidiste dejar la idea o no es tu momento, también está perfecto y te agradeceríamos que nos cuentes para cerrar la conversación contigo.
+> Quedamos atentos 😊
 
-**`reactivacion_camino_3`** (+21d):
-> Hola 😊 Soy Clara, de El Camino con Naty. No te quiero abrumar con mensajes, así
-> que este sería el último. Si algún día te vuelve la idea de hacer el Camino, aquí
-> vamos a estar para ayudarte con cariño. ¡Un abrazo y buen camino! 🙏
-> Pie: `Si prefieres no recibir más mensajes, escribe BAJA.` · Botones: `Retomemos` · `No, gracias`
+**`reactivacion_camino_2_7_dias`** (+7d, idioma `en`):
+> Hola, Cómo estás? 😊
+> Te escribimos nuevamente para saber si has podido tomar alguna decisión respecto al Camino de Santiago.
+> Entendemos que este tipo de decisiones requieren tiempo, así que simplemente queríamos preguntarte si hay algo en lo que podamos ayudarte, alguna duda que resolver o algún aspecto sobre el que te gustaría profundizar.
+> Si por ahora has decidido dejar el Camino para más adelante o no es el momento adecuado para ti, también agradeceríamos que nos lo hicieras saber para cerrar la conversación con tranquilidad.
+> Quedamos atentos a tu respuesta 😊
+
+**`reactivacion_camino_3`** (+21d, idioma `en`):
+> Hola, ¿cómo estás? 😊
+> Te escribimos con la intención de hacer seguimiento a nuestra conversación sobre el Camino de Santiago.
+> Como no hemos tenido noticias tuyas en estos días, asumiremos que por ahora no es el momento para dar este paso, y está completamente bien.....cada Camino tiene su propio tiempo y cada persona también. 💛
+> Queríamos agradecerte por tu interés en nuestra experiencia y dejarte saber que, si más adelante vuelves a sentir el llamado o quieres retomar la conversación, estaremos felices de escucharte. Por ahora cerraremos este chat, pero las puertas siempre quedarán abiertas. un abrazo!
 
 ### 6.2 RPC `get_template_candidates(p_limit)` (creada)
 Devuelve WhatsApp elegibles: `stage IN (window,tpl_1,tpl_2)`, último msg=assistant,
@@ -193,13 +197,29 @@ sin handoff/opt-out, respetando cadencia (window→+2d para tpl_1; tpl_1/tpl_2 p
 `remarketing_next_at`). Ordena calientes primero. Devuelve `next_template`
 ('tpl_1'|'tpl_2'|'tpl_3').
 
-### 6.3 Workflow de backlog (CREADO, desactivado)
-`Clara - Remarketing Backlog WA` (`nEj0pVb1ydjBmqQx`) — **desactivado**. Cron
-`0 0 14,20 * * *` UTC (9am/3pm COT). RPC `get_template_candidates(40)` → IF por
-`next_template` (tpl_1/tpl_2/tpl_3) → `Enviar Plantilla N` (WA tipo `template`,
-name=`reactivacion_camino_N`, language `es`, pacing 15s) → `Registrar tpl_N`
+### 6.3 Workflow de backlog (ACTIVO)
+`Clara - Remarketing Backlog WA` (`nEj0pVb1ydjBmqQx`) — **active=true, publicado**
+(versión `382f352c`, activado 2026-06-05). Cron `0 0 15,22 * * 1-6` UTC =
+**10am y 5pm COT, lunes a sábado** (domingo excluido; horas estratégicas: mañana
+fresca + cierre de tarde, dentro de franja laboral para atender respuestas).
+RPC `get_template_candidates(10)` → IF por `next_template` (tpl_1/tpl_2/tpl_3) →
+`Enviar Plantilla N` (WA tipo `template`, pacing 15s) → `Registrar tpl_N`
+**Volumen: 10 por ronda = 20/día** (arranque suave para cuidar la calidad del
+número ante Meta; el backlog de 278 se despeja en ~14 días hábiles). Para acelerar,
+subir el `10` del nodo `Buscar Candidatos Plantilla` (p_limit).
 (UPDATE estado + `remarketing_next_at`: tpl_1→+5d, tpl_2→+14d, tpl_3→exhausted).
-Falta reasignar 7 credenciales + publish (ver checklist abajo).
+
+**Nombres/idiomas reales de las plantillas aprobadas** (¡distintos al plan, y 2 con
+locale inglés por error al crearlas — el locale es solo llave interna, el texto que
+ve el lead es el español escrito):
+- tpl_1 (+2d): `reactivacion_camino_1_2_dias` · `language.code: es`
+- tpl_2 (+7d): `reactivacion_camino_2_7_dias` · `language.code: en`
+- tpl_3 (+21d): `reactivacion_camino_3` · `language.code: en`
+
+7 credenciales asignadas (4 Postgres `Supabase Postgres BayMax` + 3 HTTP `WhatsApp
+Bearer Token`). El workflow se reconstruyó vía n8n SDK (update_workflow); el
+`jsonBody` va como `expr('{{ ... }}')` para evitar el bug del doble `=` que produce
+la edición manual en la UI (rinde `={...}` y rompe el JSON → error "not valid JSON").
 
 ### 6.4 Opt-out (IMPLEMENTADO) y Backfill (HECHO)
 - **Opt-out** en `/chat` (commit 883b903, desplegado): detecta "baja/stop/no
@@ -209,12 +229,15 @@ Falta reasignar 7 credenciales + publish (ver checklist abajo).
 - **Backfill:** los 3 mensajes IG de la corrida 15842 ya insertados en `messages`.
 - **Backlog elegible:** 277 conversaciones WA (de 371; 51 handoff + 1 optout excluidos).
 
-### 6.5 Checklist de lanzamiento (cuando las plantillas estén Approved)
-1. Confirmar idioma exacto aprobado (es vs es_CO) → ajustar `language.code` en los 3 nodos Enviar Plantilla si difiere.
-2. Reasignar 7 credenciales del workflow `nEj0pVb1ydjBmqQx` + Cmd+S + `publish_workflow`.
-3. Probar 1 envío real → verificar entrega + `stage=tpl_1` + `next_at`.
-4. Sembrar backlog: `UPDATE conversations SET remarketing_stage='window', remarketing_last_at=now()-interval '3 days' WHERE channel='whatsapp' AND status='clara' AND remarketing_stage='none' AND user_id<>'573004910929' AND <sin handoff de número> AND <último msg=assistant> AND <sin optout>;`
-5. Activar y monitorear primeras corridas.
+### 6.5 Checklist de lanzamiento — COMPLETADO 2026-06-05
+1. ✅ Idioma confirmado por plantilla (es/en/en) → `language.code` ajustado por nodo.
+2. ✅ 7 credenciales asignadas + workflow publicado (`publish_workflow`).
+3. ✅ Canario: 1 envío real a 573044004720 (número con handoff → enmascarado temporal
+   del nº de Naty + restaurado tras el test). Meta `message_status: accepted`, llegó
+   OK, `stage=tpl_1`+`next_at` correctos, datos de prueba restaurados.
+4. ✅ Backlog sembrado: 278 conversaciones (mismo WHERE que abajo) → `stage=window`.
+   `UPDATE conversations SET remarketing_stage='window', remarketing_last_at=now()-interval '3 days' WHERE channel='whatsapp' AND status='clara' AND remarketing_stage='none' AND user_id<>'573004910929' AND <sin handoff de número> AND <último msg=assistant> AND <sin optout>;`
+5. ✅ Activado (active=true). Monitorear primeras corridas (9am/3pm COT, 40/run).
 
 ### 6.4 Costo (WhatsApp 98% Colombia, ~$0,0125/msg)
 - Backlog inicial: **~$9 USD una vez**. Recurrente: **~$5–8 USD/mes**.

@@ -2,3 +2,14 @@ node_modules/
 .env
 conversationHistory.json
 *.log
+
+# macOS / editor / local
+.DS_Store
+**/.DS_Store
+.claude/
+
+# Datos locales de prueba (no subir historiales reales)
+historial/
+
+# Proyecto legacy con su propio .env, node_modules y .git anidado (no subir)
+santiago/
