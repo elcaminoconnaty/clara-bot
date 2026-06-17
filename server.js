@@ -817,7 +817,7 @@ app.post('/chat', async (req, res) => {
 
     console.log(`[${userId}] Llamando a Claude API...`);
     const claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: [
         {
@@ -1017,7 +1017,7 @@ app.post('/remarketing', async (req, res) => {
     convo.push({ role: 'user', content: followupNote });
 
     const claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 400,
       system: [
         {
