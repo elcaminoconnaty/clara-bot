@@ -13,3 +13,4 @@ historial/
 
 # Proyecto legacy con su propio .env, node_modules y .git anidado (no subir)
 santiago/
+n8n-backups/
