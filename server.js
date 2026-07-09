@@ -79,19 +79,32 @@ async function fetchHistory(userId) {
   return rows.reverse();
 }
 
+// Pausada si status='naty' (Naty intervino) o 'paused' (pausa manual del panel).
+// paused_until vencido → auto-reanudar (Clara retoma sola); NULL → pausa indefinida.
 async function isPaused(userId) {
   const url = `${SUPABASE_URL}/rest/v1/conversations`
-    + `?user_id=eq.${encodeURIComponent(userId)}&select=status`;
+    + `?user_id=eq.${encodeURIComponent(userId)}&select=status,paused_until`;
   try {
     const r = await fetch(url, { headers: SB_HEADERS });
     if (!r.ok) return true;          // fail-CLOSED: no responder ante incertidumbre
     const rows = await r.json();
-    return rows[0]?.status === 'naty';
+    const row = rows[0];
+    if (!row || (row.status !== 'naty' && row.status !== 'paused')) return false;
+    if (row.paused_until && new Date(row.paused_until).getTime() <= Date.now()) {
+      console.log(`[${userId}] Pausa expirada (${row.paused_until}) — Clara retoma.`);
+      await setPaused(userId, false);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.warn(`[${userId}] isPaused fail-CLOSED por error Supabase:`, err.message);
     return true;
   }
 }
+
+// Cada mensaje manual de Naty renueva la pausa por 48h; al vencer, Clara retoma sola.
+const PAUSE_HOURS = 48;
+const pauseUntilISO = () => new Date(Date.now() + PAUSE_HOURS * 3600 * 1000).toISOString();
 
 // Upsert por user_id. Si la fila no existe, la crea con channel='whatsapp' por default.
 async function setPaused(userId, paused) {
@@ -99,6 +112,7 @@ async function setPaused(userId, paused) {
   const body = JSON.stringify({
     user_id: userId,
     status: paused ? 'naty' : 'clara',
+    paused_until: paused ? pauseUntilISO() : null,
   });
   const r = await fetch(url, {
     method: 'POST',
@@ -115,6 +129,47 @@ async function deleteHistory(userId) {
   const url = `${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${encodeURIComponent(userId)}`;
   const r = await fetch(url, { method: 'DELETE', headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase deleteHistory ${r.status}: ${await r.text()}`);
+}
+
+// Aviso corto a Telegram (mismo bot del reporte diario). Nunca lanza: solo advierte.
+async function sendTelegramAlert(text) {
+  const token = process.env.TELEGRAM_ALERT_TOKEN;
+  const chat = process.env.TELEGRAM_ALERT_CHAT;
+  if (!token || !chat) return;
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text }),
+    });
+    if (!r.ok) console.warn('[telegram] sendMessage error:', r.status, await r.text());
+  } catch (err) {
+    console.warn('[telegram] error:', err.message);
+  }
+}
+
+// Durante la pausa n8n no persiste nada (su rama de éxito no corre), así que si no
+// guardamos acá el mensaje del cliente, Naty no lo vería en el panel.
+async function saveInboundWhilePaused(userId, text) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ conversation_id: userId, role: 'user', content: text, sent_by: 'user' }),
+    });
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        user_id: userId,
+        last_message: text.substring(0, 500),
+        last_message_at: new Date().toISOString(),
+        unread: 1,
+      }),
+    });
+  } catch (err) {
+    console.warn(`[${userId}] saveInboundWhilePaused error:`, err.message);
+  }
 }
 
 // Marca el estado de remarketing de una conversación (ej. 'opted_out' cuando piden BAJA).
@@ -647,6 +702,28 @@ function esEmojiSolo(text) {
   return stripped.length === 0 && text.trim().length > 0;
 }
 
+// Normaliza para comparar comandos: minúsculas, sin tildes, sin puntuación, espacios colapsados.
+function normalizarTexto(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\sñ]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const PAUSA_REGEX   = /\b(hola[\s,]+)?te\s+habla\s+naty\b/i;
+const REANUDA_REGEX = /\bte\s+responde\s+clara\b/i;
+
+// Respuesta vacía deliberada. skip_reason le dice a n8n que NO es un fallo de Clara
+// (para no disparar alertas falsas a Telegram).
+const skipResponse = (reason) => ({
+  version: 'v2',
+  content: { type: 'instagram', messages: [] },
+  skip_reason: reason,
+});
+
 // ─── Pausa ────────────────────────────────────────────────────────────────────
 // Persistida en Supabase: conversations.status. 'clara' = activa / 'naty' = pausada.
 
@@ -699,39 +776,28 @@ app.post('/chat', async (req, res) => {
     // Previene spam cuando Meta reintenta webhooks no confirmados.
     if (isRecentDuplicate(userId, messageText)) {
       console.log(`[${userId}] DUPLICADO descartado (mismo texto en <${DEDUP_TTL_MS / 1000}s): "${messageText.slice(0, 60)}"`);
-      return res.json({ version: 'v2', content: { type: 'instagram', messages: [] } });
+      return res.json(skipResponse('duplicate'));
     }
 
     // ── Comandos de pausa Naty/Clara (antes de cualquier otra lógica) ───────────
-    // Normaliza: minúsculas, sin tildes, sin puntuación, espacios colapsados.
-    const msgNorm = messageText
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^\w\sñ]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const emptyResponse = { version: 'v2', content: { type: 'instagram', messages: [] } };
-
-    const PAUSA_REGEX   = /\b(hola[\s,]+)?te\s+habla\s+naty\b/i;
-    const REANUDA_REGEX = /\bte\s+responde\s+clara\b/i;
+    const msgNorm = normalizarTexto(messageText);
 
     if (PAUSA_REGEX.test(msgNorm)) {
       await setPaused(userId, true);
       console.log(`[${userId}] PAUSA detectada ("${messageText}") — status='naty'.`);
-      return res.json(emptyResponse);
+      return res.json(skipResponse('pause_command'));
     }
 
     if (REANUDA_REGEX.test(msgNorm)) {
       await setPaused(userId, false);
       console.log(`[${userId}] REANUDACION detectada ("${messageText}") — status='clara'.`);
-      return res.json(emptyResponse);
+      return res.json(skipResponse('resume_command'));
     }
 
     // Ignorar mensajes que son solo emojis (reacciones a historias)
     if (esEmojiSolo(messageText)) {
       console.log(`[${userId}] Emoji solo detectado — ignorando sin responder.`);
-      return res.json(emptyResponse);
+      return res.json(skipResponse('emoji_only'));
     }
 
     // ── Admin check: Nico u otros del equipo ─────────────────────────────────
@@ -745,8 +811,9 @@ app.post('/chat', async (req, res) => {
     ]);
 
     if (paused) {
-      console.log(`[${userId}] Conversación pausada por Naty — ignorando mensaje.`);
-      return res.json(emptyResponse);
+      console.log(`[${userId}] Conversación pausada (Naty) — guardando mensaje sin responder.`);
+      if (!isAdmin) await saveInboundWhilePaused(userId, messageText);
+      return res.json(skipResponse('paused'));
     }
 
     // ── Opt-out de remarketing: si pide BAJA o dice claramente que no le interesa,
@@ -944,10 +1011,112 @@ app.post('/intervention', async (req, res) => {
     });
 
     console.log(`[/intervention] ${userId} → ${isResume ? 'RESUMED (clara)' : 'PAUSED (naty)'} | channel=${channel}`);
+    // Aviso a Telegram (sin await: no retrasa la respuesta a n8n). Hace visible
+    // cualquier pausa inesperada (p. ej. un echo mal clasificado).
+    sendTelegramAlert(isResume
+      ? `🤖 Clara reactivada en la conversación ${userId} (${channel || '?'}).`
+      : `🙋 Naty tomó la conversación ${userId} (${channel || '?'}). Clara pausada ${PAUSE_HOURS}h.`);
     res.json({ ok: true, paused: !isResume });
   } catch (err) {
     console.error('[/intervention] Error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Envío manual desde el panel (Naty responde de verdad) ───────────────────
+// El panel (elcaminoconnaty.com/panel-clara) llama acá: envía por la API de Meta
+// según canal, registra el mensaje con su mid (así el echo de IG no se clasifica
+// como una intervención nueva) y pausa a Clara 48h en esa conversación.
+
+const PANEL_ORIGIN = process.env.PANEL_ORIGIN || 'https://elcaminoconnaty.com';
+
+function setCors(res) {
+  res.set('Access-Control-Allow-Origin', PANEL_ORIGIN);
+  res.set('Access-Control-Allow-Headers', 'Content-Type, x-intervention-secret');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+}
+
+app.options('/send', (_req, res) => { setCors(res); res.sendStatus(204); });
+
+async function sendInstagramMessage(userId, text) {
+  const token = process.env.IG_ACCESS_TOKEN;
+  if (!token) throw new Error('Falta IG_ACCESS_TOKEN en el servidor');
+  const r = await fetch('https://graph.instagram.com/v21.0/me/messages', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient: { id: userId }, message: { text } }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error) throw new Error(`Instagram: ${JSON.stringify(data.error || data)}`);
+  return data.message_id || null;
+}
+
+async function sendWhatsAppMessage(userId, text) {
+  const token = process.env.WA_ACCESS_TOKEN;
+  const phoneId = process.env.WA_PHONE_NUMBER_ID;
+  if (!token || !phoneId) throw new Error('Falta WA_ACCESS_TOKEN o WA_PHONE_NUMBER_ID en el servidor');
+  const r = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', to: userId, type: 'text', text: { body: text } }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error) throw new Error(`WhatsApp: ${JSON.stringify(data.error || data)}`);
+  return (data.messages && data.messages[0] && data.messages[0].id) || null;
+}
+
+app.post('/send', async (req, res) => {
+  setCors(res);
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    const { userId, message, channel } = req.body;
+    const text = message ? String(message).trim() : '';
+    if (!userId || !text || !channel) {
+      return res.status(400).json({ error: 'userId, message y channel son requeridos' });
+    }
+
+    let mid = null;
+    if (channel === 'instagram') mid = await sendInstagramMessage(userId, text);
+    else if (channel === 'whatsapp') mid = await sendWhatsAppMessage(userId, text);
+    else return res.status(400).json({ error: `canal desconocido: ${channel}` });
+
+    // "te responde clara" también devuelve el control desde el panel
+    const resumes = REANUDA_REGEX.test(normalizarTexto(text));
+
+    await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        conversation_id: userId,
+        role: 'assistant',
+        content: text,
+        sent_by: 'naty',
+        external_message_id: mid,
+      }),
+    });
+
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        user_id: userId,
+        channel,
+        status: resumes ? 'clara' : 'naty',
+        paused_until: resumes ? null : pauseUntilISO(),
+        last_message: text.substring(0, 500),
+        last_message_at: new Date().toISOString(),
+      }),
+    });
+
+    console.log(`[/send] ${userId} (${channel}) ← Naty: "${text.slice(0, 60)}" mid=${mid} ${resumes ? '→ Clara retoma' : `→ pausa ${PAUSE_HOURS}h`}`);
+    res.json({ ok: true, message_id: mid, paused: !resumes });
+  } catch (err) {
+    console.error('[/send] Error:', err.message);
+    res.status(502).json({ error: err.message });
   }
 });
 
