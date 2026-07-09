@@ -38,8 +38,14 @@
 ## Claves y variables (Railway, servicio clara-bot)
 
 `INTERVENTION_SECRET` (mismo valor hardcodeado en los nodos n8n y en el script del panel),
-`IG_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID=1045960141936016`, `PANEL_ORIGIN`,
-`WA_ACCESS_TOKEN` (**pendiente** — sin él, responder por WhatsApp desde el panel da error claro).
+`IG_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID=1045960141936016`, `PANEL_ORIGIN`, `WA_ACCESS_TOKEN`.
+
+`WA_ACCESS_TOKEN` es un token permanente (sin caducidad) de un usuario de sistema del
+Business Manager "El Camino", generado para la app "CLara Bot N8N" con permisos
+`whatsapp_business_messaging` + `whatsapp_business_management`. Verificado el 2026-07-09
+contra el número +57 304 663 7909 ("Clara - El Camino con Naty"). Para regenerarlo:
+business.facebook.com → Ajustes → Usuarios del sistema → "Conversions API System User" →
+Generar identificador → app "CLara Bot N8N".
 
 ## Notas / historia
 
