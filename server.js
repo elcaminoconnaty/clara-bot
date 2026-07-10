@@ -68,16 +68,36 @@ function isRecentDuplicate(userId, message) {
 }
 
 // Últimas 30 entradas de messages, ordenadas ASC para enviar a Claude.
+// Incluye sent_by para distinguir los mensajes manuales de Naty; excluye los
+// placeholders de adjuntos de IG ("[mensaje manual sin texto]").
 async function fetchHistory(userId) {
   const url = `${SUPABASE_URL}/rest/v1/messages`
     + `?conversation_id=eq.${encodeURIComponent(userId)}`
-    + `&select=role,content,created_at`
+    + `&select=role,content,sent_by,created_at`
     + `&order=created_at.desc&limit=30`;
   const r = await fetch(url, { headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase fetchHistory ${r.status}: ${await r.text()}`);
   const rows = await r.json();
-  return rows.reverse();
+  return rows.reverse().filter((m) => m.content && m.content !== '[mensaje manual sin texto]');
 }
+
+// ─── Contexto de Naty en el historial ────────────────────────────────────────
+// Los mensajes manuales de Naty van marcados en el historial que ve Claude, con
+// una nota de system que le explica la convención. Así Clara retoma con total
+// claridad lo que Naty habló, como un humano que estuvo presente.
+const NATY_MARK = '[Mensaje enviado personalmente por Naty]';
+const NATY_CONTEXT_NOTE =
+  `\n\nEn el historial, los mensajes que empiezan con "${NATY_MARK}" los escribió Naty `
+  + '(la fundadora, humana) interviniendo directamente en el chat. Para el cliente, tú y '
+  + 'Naty son el mismo hilo de conversación: conoces y asumes todo lo que Naty dijo, '
+  + 'prometió o preguntó, y lo retomas con naturalidad y coherencia total. Nunca escribas '
+  + 'esa marca en tus respuestas, nunca contradigas lo que Naty dijo, y no expliques el '
+  + 'traspaso a menos que el cliente lo pregunte.';
+
+const mapHistoryRow = (m) => ({
+  role: m.role,
+  content: m.sent_by === 'naty' ? `${NATY_MARK}\n${m.content}` : m.content,
+});
 
 // Pausada si status='naty' (Naty intervino) o 'paused' (pausa manual del panel).
 // paused_until vencido → auto-reanudar (Clara retoma sola); NULL → pausa indefinida.
@@ -855,6 +875,7 @@ app.post('/chat', async (req, res) => {
     if (REANUDA_REGEX.test(msgNorm)) {
       await setPaused(userId, false);
       console.log(`[${userId}] REANUDACION detectada ("${messageText}") — status='clara'.`);
+      claraResumeReply(userId, PHONE_ID_REGEX.test(userId) ? 'whatsapp' : 'instagram');
       return res.json(skipResponse('resume_command'));
     }
 
@@ -865,12 +886,14 @@ app.post('/chat', async (req, res) => {
     }
 
     // ── Admin check: Nico u otros del equipo ─────────────────────────────────
+    // Los admins también reciben historial: sus pruebas deben comportarse como
+    // una conversación real (solo cambia la nota interna de tono).
     const isAdmin = ADMIN_USERS.has(userId);
-    if (isAdmin) console.log(`[${userId}] 🔑 Admin — sin historial, modo directo.`);
+    if (isAdmin) console.log(`[${userId}] 🔑 Admin — con historial, nota interna activa.`);
 
     // ── Cargar historial (Supabase) y estado de pausa en paralelo ───────────
     const [history, paused] = await Promise.all([
-      isAdmin ? Promise.resolve([]) : fetchHistory(userId),
+      fetchHistory(userId),
       isPaused(userId),
     ]);
 
@@ -903,7 +926,7 @@ app.post('/chat', async (req, res) => {
     // anterior puede no haber llegado. Le pedimos a Clara que lo reintegre.
     const lastMsg = history[history.length - 1];
     let pendingResend = null;
-    if (lastMsg && lastMsg.role === 'assistant') {
+    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.sent_by !== 'naty') {
       const timeSinceMs = Date.now() - new Date(lastMsg.created_at).getTime();
       const timeSinceSec = Math.round(timeSinceMs / 1000);
       console.log(`[${userId}] ⚠️ Último msg en DB es de Clara (hace ${timeSinceSec}s) — posible no entrega. Pidiendo a Claude que reintegre.`);
@@ -911,13 +934,15 @@ app.post('/chat', async (req, res) => {
     }
 
     // apiMessages: historial + mensaje actual (no escribimos en DB; n8n lo hace después)
-    const apiMessages = isAdmin
-      ? [{ role: 'user', content: messageText }]
-      : [
-          ...history.map(({ role, content }) => ({ role, content })),
-          { role: 'user', content: messageText },
-        ].slice(-30);
+    const apiMessages = [
+      ...history.map(mapHistoryRow),
+      { role: 'user', content: messageText },
+    ].slice(-30);
+    while (apiMessages.length && apiMessages[0].role !== 'user') apiMessages.shift(); // la API exige iniciar en 'user'
     console.log(`[${userId}] apiMessages: ${apiMessages.length} mensajes`);
+
+    // Nota de contexto cuando el historial trae intervenciones de Naty
+    const natyNote = history.some((m) => m.sent_by === 'naty') ? NATY_CONTEXT_NOTE : '';
 
     const today = new Date().toLocaleDateString('es-CO', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
@@ -964,9 +989,9 @@ app.post('/chat', async (req, res) => {
         // aparte: solo invalida su segmento cuando cambian (1 vez/semana máx).
         ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
         {
-          // Dinámico — fecha, intro, nota admin. No se cachea.
+          // Dinámico — fecha, intro, nota admin, contexto de Naty. No se cachea.
           type: 'text',
-          text: `La fecha de hoy es: ${today}.${introNote}${resendNote}${adminNote}`,
+          text: `La fecha de hoy es: ${today}.${introNote}${resendNote}${adminNote}${natyNote}`,
         }
       ],
       messages: apiMessages,
@@ -1081,6 +1106,10 @@ app.post('/intervention', async (req, res) => {
     });
 
     console.log(`[/intervention] ${userId} → ${isResume ? 'RESUMED (clara)' : 'PAUSED (naty)'} | channel=${channel}`);
+
+    // Al devolver el control (frase "te responde clara" desde la app de IG),
+    // Clara responde de inmediato lo pendiente (fire-and-forget).
+    if (isResume) claraResumeReply(userId, channel || 'instagram');
     // Aviso a Telegram (sin await: no retrasa la respuesta a n8n). Hace visible
     // cualquier pausa inesperada (p. ej. un echo mal clasificado).
     sendTelegramAlert(isResume
@@ -1183,12 +1212,91 @@ app.post('/send', async (req, res) => {
     });
 
     console.log(`[/send] ${userId} (${channel}) ← Naty: "${text.slice(0, 60)}" mid=${mid} ${resumes ? '→ Clara retoma' : `→ pausa ${PAUSE_HOURS}h`}`);
+
+    // Al devolver el control, Clara responde de inmediato lo pendiente
+    // (fire-and-forget: no retrasa la respuesta al panel).
+    if (resumes) claraResumeReply(userId, channel);
+
     res.json({ ok: true, message_id: mid, paused: !resumes });
   } catch (err) {
     console.error('[/send] Error:', err.message);
     res.status(502).json({ error: err.message });
   }
 });
+
+// ─── Respuesta inmediata al reanudar ─────────────────────────────────────────
+// Cuando Naty devuelve la conversación con "te responde clara", Clara NO espera a
+// que el cliente escriba: lee todo el contexto (incluido lo que Naty habló) y
+// retoma el hilo de inmediato, respondiendo lo que quedó pendiente.
+async function claraResumeReply(userId, channel) {
+  try {
+    const history = await fetchHistory(userId);
+    if (!history.length) return;
+
+    const convo = history.map(mapHistoryRow).slice(-30);
+    while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
+    convo.push({
+      role: 'user',
+      content:
+        'NOTA INTERNA DEL SISTEMA (el cliente no ve este mensaje): Naty acaba de devolverte '
+        + 'esta conversación escribiendo "te responde Clara". Revisa todo el historial — en '
+        + 'especial lo último que el cliente pidió y lo que Naty ya le dijo o prometió — y '
+        + 'respóndele AHORA retomando el hilo con naturalidad: responde lo que quedó pendiente '
+        + 'o continúa la conversación donde iba. No saludes desde cero, no te presentes, no '
+        + 'repitas lo que Naty ya dijo, y no menciones esta nota ni el traspaso.',
+    });
+
+    const today = new Date().toLocaleDateString('es-CO', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
+    });
+    const lessons = await getNatyLessons();
+
+    const claudeResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: [
+        // Mismos bloques cacheados que /chat → comparte cache hits.
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
+        { type: 'text', text: `La fecha de hoy es: ${today}.${NATY_CONTEXT_NOTE}` },
+      ],
+      messages: convo,
+    });
+
+    const textBlock = claudeResponse.content.find((b) => b.type === 'text');
+    const text = (textBlock ? textBlock.text : '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
+    if (!text) return;
+
+    // Enviar por el canal y registrar con su mid (para que el echo de IG no se
+    // clasifique como una intervención nueva de Naty).
+    let mid = null;
+    if (channel === 'instagram') mid = await sendInstagramMessage(userId, text);
+    else if (channel === 'whatsapp') mid = await sendWhatsAppMessage(userId, text);
+    else { console.warn(`[resume] ${userId} canal desconocido: ${channel}`); return; }
+
+    await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        conversation_id: userId, role: 'assistant', content: text,
+        sent_by: 'clara', external_message_id: mid,
+      }),
+    });
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        user_id: userId,
+        last_message: text.substring(0, 500),
+        last_message_at: new Date().toISOString(),
+      }),
+    });
+    console.log(`[resume] ${userId} (${channel}) ← Clara retoma: "${text.slice(0, 60)}"`);
+  } catch (err) {
+    console.error(`[resume] ${userId} error:`, err.message);
+    sendTelegramAlert(`⚠️ Clara no pudo retomar la conversación ${userId} tras "te responde clara": ${err.message}`);
+  }
+}
 
 // ─── Aprendizaje semanal de Naty (cron de n8n llama acá los domingos) ──────────
 // Destila las respuestas manuales de Naty desde la última corrida en lecciones
@@ -1358,7 +1466,7 @@ app.post('/remarketing', async (req, res) => {
     // Para que Claude genere una respuesta FRESCA — y no "continúe" el último turno de
     // Clara como prefill — los mensajes deben terminar en un turno 'user'. Añadimos la
     // directiva de reactivación como ese turno final, conservando el contexto reciente.
-    const convo = history.map(({ role, content }) => ({ role, content })).slice(-12);
+    const convo = history.map(mapHistoryRow).slice(-12);
     while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
     convo.push({ role: 'user', content: followupNote });
 
