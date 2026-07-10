@@ -49,6 +49,14 @@ Generar identificador → app "CLara Bot N8N".
 
 ## Notas / historia
 
+- 2026-07-10: **fix login del panel** — el bug "pongo la contraseña y no carga nada" eran DOS cosas:
+  (1) la página WP 1338 tiene contraseña de WordPress a nivel de página (post_password) distinta
+  de la del panel: sin sesión WP ni cookie postpass (~10 días) salía el formulario nativo de WP
+  donde la clave del panel no servía; (2) WordPress le quitó el `onclick` al botón "Entrar" del
+  widget, así que solo funcionaba la tecla Enter. Solución: TODAS las claves unificadas en
+  `clara2026` (post_password de WP y PANEL_PASSWORD del script) y el login del panel ahora usa
+  delegación de eventos a nivel de documento (WP no puede romperla). Ojo: nunca poner `onclick`
+  en el HTML del widget (WP los elimina al guardar); todo se engancha desde el script.
 - 2026-07-10: **fix bug panel WA** — `/chat` en pausa NO guardaba el mensaje entrante si el
   número era admin (`ADMIN_USERS`, o sea el de Nico, con el que se hizo la prueba), y por eso
   la respuesta del usuario no se veía en el panel. Ahora guarda siempre. Para usuarios
