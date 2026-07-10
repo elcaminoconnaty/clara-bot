@@ -47,6 +47,21 @@ contra el número +57 304 663 7909 ("Clara - El Camino con Naty"). Para regenera
 business.facebook.com → Ajustes → Usuarios del sistema → "Conversions API System User" →
 Generar identificador → app "CLara Bot N8N".
 
+## Reanudación con contexto (2026-07-10)
+
+- **Clara responde de inmediato al "te responde Clara"**: no espera a que el cliente
+  escriba. `claraResumeReply()` en server.js lee los últimos 30 mensajes (incluyendo lo
+  que Naty habló), genera la respuesta pendiente y la envía por el canal, registrándola
+  con su `external_message_id` (para que el echo de IG no parezca de Naty). Se dispara
+  desde `/send` (panel), `/intervention` (frase en la app de IG) y el fallback de `/chat`.
+- **Contexto de Naty en el prompt**: los mensajes manuales de Naty van marcados con
+  "[Mensaje enviado personalmente por Naty]" en el historial que ve Claude, junto a una
+  nota de system que le ordena asumir todo lo que Naty dijo/prometió como propio.
+- **Admins con historial**: `ADMIN_USERS` (Nico) ahora recibe historial normal — sus
+  pruebas se comportan como conversaciones reales (antes Clara les respondía de cero).
+- Verificado en producción: Naty devolvió el control a las 20:55:00 y Clara respondió a
+  las 20:55:05 retomando la pregunta pendiente del cliente.
+
 ## Notas / historia
 
 - 2026-07-10: **fix login del panel** — el bug "pongo la contraseña y no carga nada" eran DOS cosas:
