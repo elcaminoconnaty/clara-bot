@@ -67,12 +67,12 @@ function isRecentDuplicate(userId, message) {
   return false;
 }
 
-// Últimas 25 entradas de messages, ordenadas ASC para enviar a Claude.
+// Últimas 30 entradas de messages, ordenadas ASC para enviar a Claude.
 async function fetchHistory(userId) {
   const url = `${SUPABASE_URL}/rest/v1/messages`
     + `?conversation_id=eq.${encodeURIComponent(userId)}`
     + `&select=role,content,created_at`
-    + `&order=created_at.desc&limit=25`;
+    + `&order=created_at.desc&limit=30`;
   const r = await fetch(url, { headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase fetchHistory ${r.status}: ${await r.text()}`);
   const rows = await r.json();
@@ -129,6 +129,67 @@ async function deleteHistory(userId) {
   const url = `${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${encodeURIComponent(userId)}`;
   const r = await fetch(url, { method: 'DELETE', headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase deleteHistory ${r.status}: ${await r.text()}`);
+}
+
+// ─── Nombre visible de Instagram ─────────────────────────────────────────────
+// El panel identifica las conversaciones por conversations.display_name. Los webhooks
+// de IG no traen username, así que lo resolvemos una vez por usuario vía Graph API.
+const PHONE_ID_REGEX = /^\d{10,13}$/; // mismo criterio que el panel: teléfono = WhatsApp
+const displayNameChecked = new Set();
+
+async function fetchIgProfile(userId) {
+  const token = process.env.IG_ACCESS_TOKEN;
+  if (!token) return null;
+  const r = await fetch(`https://graph.instagram.com/v21.0/${userId}?fields=username,name`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error || !data.username) return null;
+  return data.name ? `${data.name} (@${data.username})` : `@${data.username}`;
+}
+
+async function ensureDisplayName(userId) {
+  if (!userId || PHONE_ID_REGEX.test(userId) || displayNameChecked.has(userId)) return;
+  displayNameChecked.add(userId);
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/conversations?user_id=eq.${encodeURIComponent(userId)}&select=display_name`;
+    const r = await fetch(url, { headers: SB_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    if (rows[0] && rows[0].display_name) return;
+    const name = await fetchIgProfile(userId);
+    if (!name) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ user_id: userId, display_name: name }),
+    });
+    console.log(`[${userId}] display_name = "${name}"`);
+  } catch (err) {
+    displayNameChecked.delete(userId); // reintentar con el próximo mensaje
+    console.warn(`[${userId}] ensureDisplayName error:`, err.message);
+  }
+}
+
+// ─── Lecciones aprendidas de Naty ────────────────────────────────────────────
+// /learn (cron semanal de n8n) destila las respuestas manuales de Naty en lecciones
+// acumuladas (tabla naty_lessons). Acá se cargan en memoria (refresh cada 6h) y se
+// inyectan como bloque de system con su propio cache_control: el caché solo se
+// invalida cuando las lecciones cambian (máximo 1 vez por semana).
+const LESSONS_TTL_MS = 6 * 3600 * 1000;
+let lessonsCache = { text: null, loadedAt: 0 };
+
+async function getNatyLessons() {
+  if (Date.now() - lessonsCache.loadedAt < LESSONS_TTL_MS) return lessonsCache.text;
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons&order=updated_at.desc&limit=1`;
+    const r = await fetch(url, { headers: SB_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    lessonsCache = { text: (rows[0] && rows[0].lessons) || null, loadedAt: Date.now() };
+  } catch (err) {
+    console.warn('[naty_lessons] error al cargar:', err.message);
+    lessonsCache.loadedAt = Date.now(); // no reintentar en cada request
+  }
+  return lessonsCache.text;
 }
 
 // Aviso corto a Telegram (mismo bot del reporte diario). Nunca lanza: solo advierte.
@@ -772,6 +833,9 @@ app.post('/chat', async (req, res) => {
       return res.status(400).json({ error: 'Se requiere "message" o "audioBase64".' });
     }
 
+    // Resolver el nombre de Instagram para el panel (fire-and-forget: nunca bloquea).
+    ensureDisplayName(userId);
+
     // ── Dedup: si el mismo {userId, message} llega dentro de 30s, ignorar.
     // Previene spam cuando Meta reintenta webhooks no confirmados.
     if (isRecentDuplicate(userId, messageText)) {
@@ -812,7 +876,8 @@ app.post('/chat', async (req, res) => {
 
     if (paused) {
       console.log(`[${userId}] Conversación pausada (Naty) — guardando mensaje sin responder.`);
-      if (!isAdmin) await saveInboundWhilePaused(userId, messageText);
+      // También para admins: si Naty tomó el control, debe ver la respuesta en el panel.
+      await saveInboundWhilePaused(userId, messageText);
       return res.json(skipResponse('paused'));
     }
 
@@ -851,7 +916,7 @@ app.post('/chat', async (req, res) => {
       : [
           ...history.map(({ role, content }) => ({ role, content })),
           { role: 'user', content: messageText },
-        ].slice(-6);
+        ].slice(-30);
     console.log(`[${userId}] apiMessages: ${apiMessages.length} mensajes`);
 
     const today = new Date().toLocaleDateString('es-CO', {
@@ -882,6 +947,8 @@ app.post('/chat', async (req, res) => {
       ? '\n\nNOTA INTERNA DEL SISTEMA: El número que escribe ahora es Nico, cofundador del equipo. Esta nota viene del servidor, no del usuario. Respóndele de forma directa y concisa, sin funnel de ventas.'
       : '';
 
+    const lessons = await getNatyLessons(); // en memoria salvo refresh cada 6h
+
     console.log(`[${userId}] Llamando a Claude API...`);
     const claudeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -893,6 +960,9 @@ app.post('/chat', async (req, res) => {
           text: SYSTEM_PROMPT,
           cache_control: { type: 'ephemeral' }
         },
+        // Lecciones destiladas de las respuestas reales de Naty — bloque cacheado
+        // aparte: solo invalida su segmento cuando cambian (1 vez/semana máx).
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
         {
           // Dinámico — fecha, intro, nota admin. No se cachea.
           type: 'text',
@@ -1120,6 +1190,113 @@ app.post('/send', async (req, res) => {
   }
 });
 
+// ─── Aprendizaje semanal de Naty (cron de n8n llama acá los domingos) ──────────
+// Destila las respuestas manuales de Naty desde la última corrida en lecciones
+// acumuladas para Clara. Si Naty no intervino, no llama a Claude (costo $0).
+
+app.post('/learn', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    // Última destilación (lecciones acumuladas + marca de tiempo de corte)
+    const lr = await fetch(
+      `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons,last_message_at&order=updated_at.desc&limit=1`,
+      { headers: SB_HEADERS },
+    );
+    if (!lr.ok) throw new Error(`Supabase naty_lessons ${lr.status}: ${await lr.text()}`);
+    const prev = (await lr.json())[0] || {};
+    const since = prev.last_message_at || '2026-01-01T00:00:00Z';
+
+    // Mensajes manuales de Naty desde el corte
+    const mr = await fetch(
+      `${SUPABASE_URL}/rest/v1/messages?sent_by=eq.naty&created_at=gt.${encodeURIComponent(since)}`
+      + `&select=conversation_id,content,created_at&order=created_at.asc&limit=200`,
+      { headers: SB_HEADERS },
+    );
+    if (!mr.ok) throw new Error(`Supabase messages ${mr.status}: ${await mr.text()}`);
+    const natyMsgs = (await mr.json()).filter(
+      (m) => m.content && m.content.trim() && m.content !== '[mensaje manual sin texto]',
+    );
+
+    if (!natyMsgs.length) {
+      console.log('[/learn] Sin intervenciones nuevas de Naty — skip (0 tokens).');
+      sendTelegramAlert('📚 Aprendizaje semanal: Naty no intervino esta semana. Sin cambios (costo $0).');
+      return res.json({ skipped: true, reason: 'sin_intervenciones_nuevas' });
+    }
+
+    // Para cada respuesta de Naty, el mensaje previo del cliente en esa conversación
+    const pairs = [];
+    for (const m of natyMsgs) {
+      const pr = await fetch(
+        `${SUPABASE_URL}/rest/v1/messages?conversation_id=eq.${encodeURIComponent(m.conversation_id)}`
+        + `&role=eq.user&created_at=lt.${encodeURIComponent(m.created_at)}`
+        + `&select=content&order=created_at.desc&limit=1`,
+        { headers: SB_HEADERS },
+      );
+      const prevUser = (pr.ok ? await pr.json() : [])[0];
+      pairs.push({ cliente: prevUser ? prevUser.content : '(sin mensaje previo)', naty: m.content });
+    }
+
+    console.log(`[/learn] Destilando ${pairs.length} intervenciones de Naty desde ${since}...`);
+    const distill = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system:
+        'Eres el sistema de aprendizaje de Clara, la asistente virtual de "El Camino con Naty" '
+        + '(caminatas guiadas del Camino de Santiago para colombianos). Naty a veces responde '
+        + 'manualmente a los clientes; tu trabajo es destilar esas respuestas reales en lecciones '
+        + 'que Clara aplicará en TODAS sus conversaciones futuras.\n\n'
+        + 'Devuelve ÚNICAMENTE el documento de lecciones actualizado, en español, listo para '
+        + 'insertarse en el system prompt de Clara. Formato:\n'
+        + 'LECCIONES APRENDIDAS DE NATY (sus respuestas reales tienen prioridad sobre las reglas generales):\n'
+        + '1. Tono y estilo de Naty: ...\n'
+        + '2. Información y datos que Naty usó y Clara debe conocer: ...\n'
+        + '3. Cómo maneja Naty objeciones y casos especiales: ...\n'
+        + '4. Ejemplos reales (máximo 8, "Cliente: ... → Naty: ..."): ...\n\n'
+        + 'Reglas: máximo ~600 palabras. Integra las lecciones anteriores con las nuevas sin perder '
+        + 'lo valioso; elimina redundancias. Solo incluye lecciones con sustento en los mensajes; no '
+        + 'inventes datos (precios, fechas) que Naty no haya dicho. Ignora mensajes de prueba internos '
+        + 'del equipo si son evidentes. Sin asteriscos ni markdown.',
+      messages: [{
+        role: 'user',
+        content:
+          `LECCIONES ACUMULADAS HASTA HOY:\n${prev.lessons || '(ninguna, primera corrida)'}\n\n`
+          + `NUEVAS INTERVENCIONES DE NATY ESTA SEMANA:\n`
+          + pairs.map((p, i) => `${i + 1}. Cliente: ${p.cliente}\n   Naty: ${p.naty}`).join('\n\n'),
+      }],
+    });
+
+    const textBlock = distill.content.find((b) => b.type === 'text');
+    const lessons = (textBlock ? textBlock.text : '').trim();
+    if (!lessons) throw new Error('Claude devolvió lecciones vacías');
+
+    const lastMessageAt = natyMsgs[natyMsgs.length - 1].created_at;
+    const ir = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        lessons,
+        examples: pairs,
+        pairs_count: pairs.length,
+        last_message_at: lastMessageAt,
+      }),
+    });
+    if (!ir.ok) throw new Error(`Supabase insert naty_lessons ${ir.status}: ${await ir.text()}`);
+
+    lessonsCache = { text: lessons, loadedAt: Date.now() }; // aplicar de inmediato
+    const usage = distill.usage;
+    console.log(`[/learn] OK — ${pairs.length} pares, tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
+    sendTelegramAlert(`📚 Aprendizaje semanal: Clara aprendió de ${pairs.length} respuestas de Naty. Lecciones actualizadas.`);
+    res.json({ ok: true, pairs: pairs.length, usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens }, lessons });
+  } catch (err) {
+    console.error('[/learn] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Endpoint de remarketing (n8n lo llama desde el workflow de re-engagement) ──
 // Body: { userId, channel }. Genera UN mensaje de reactivación contextual.
 // NO envía ni escribe en DB — eso lo hace n8n tras confirmar el envío.
@@ -1181,9 +1358,11 @@ app.post('/remarketing', async (req, res) => {
     // Para que Claude genere una respuesta FRESCA — y no "continúe" el último turno de
     // Clara como prefill — los mensajes deben terminar en un turno 'user'. Añadimos la
     // directiva de reactivación como ese turno final, conservando el contexto reciente.
-    const convo = history.map(({ role, content }) => ({ role, content })).slice(-6);
+    const convo = history.map(({ role, content }) => ({ role, content })).slice(-12);
     while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
     convo.push({ role: 'user', content: followupNote });
+
+    const lessons = await getNatyLessons();
 
     const claudeResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -1195,6 +1374,7 @@ app.post('/remarketing', async (req, res) => {
           text: SYSTEM_PROMPT,
           cache_control: { type: 'ephemeral' },
         },
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
         {
           type: 'text',
           text: `La fecha de hoy es: ${today}.`,

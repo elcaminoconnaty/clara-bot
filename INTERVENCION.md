@@ -49,6 +49,14 @@ Generar identificador → app "CLara Bot N8N".
 
 ## Notas / historia
 
+- 2026-07-10: **fix bug panel WA** — `/chat` en pausa NO guardaba el mensaje entrante si el
+  número era admin (`ADMIN_USERS`, o sea el de Nico, con el que se hizo la prueba), y por eso
+  la respuesta del usuario no se veía en el panel. Ahora guarda siempre. Para usuarios
+  normales siempre funcionó (verificado con las conversaciones IG pausadas).
+- 2026-07-10: las conversaciones de IG muestran nombre real en el panel
+  (`conversations.display_name = "Nombre (@usuario)"`): backfill de 444/447 vía Graph API
+  (`scripts/backfill-ig-names.js`) + `ensureDisplayName()` en server.js para nuevos usuarios.
+
 - La frase "hola te habla naty" del intento anterior nunca funcionó porque los mensajes de
   Naty llegan como echo y el workflow los botaba antes de llegar a `/chat`. Los regex siguen
   en `/chat` como fallback inofensivo.
