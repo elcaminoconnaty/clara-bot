@@ -190,6 +190,21 @@ async function ensureDisplayName(userId) {
   }
 }
 
+// Nombre legible para avisos (Telegram): display_name de IG si existe; el user_id
+// de WhatsApp ya es el número de celular, así que sirve tal cual.
+async function getDisplayName(userId) {
+  try {
+    if (!PHONE_ID_REGEX.test(userId)) await ensureDisplayName(userId);
+    const url = `${SUPABASE_URL}/rest/v1/conversations?user_id=eq.${encodeURIComponent(userId)}&select=display_name`;
+    const r = await fetch(url, { headers: SB_HEADERS });
+    const rows = r.ok ? await r.json() : [];
+    if (rows[0] && rows[0].display_name) return rows[0].display_name;
+  } catch (err) {
+    console.warn(`[${userId}] getDisplayName error:`, err.message);
+  }
+  return userId;
+}
+
 // ─── Lecciones aprendidas de Naty ────────────────────────────────────────────
 // /learn (cron semanal de n8n) destila las respuestas manuales de Naty en lecciones
 // acumuladas (tabla naty_lessons). Acá se cargan en memoria (refresh cada 6h) y se
@@ -1111,10 +1126,11 @@ app.post('/intervention', async (req, res) => {
     // Clara responde de inmediato lo pendiente (fire-and-forget).
     if (isResume) claraResumeReply(userId, channel || 'instagram');
     // Aviso a Telegram (sin await: no retrasa la respuesta a n8n). Hace visible
-    // cualquier pausa inesperada (p. ej. un echo mal clasificado).
-    sendTelegramAlert(isResume
-      ? `🤖 Clara reactivada en la conversación ${userId} (${channel || '?'}).`
-      : `🙋 Naty tomó la conversación ${userId} (${channel || '?'}). Clara pausada ${PAUSE_HOURS}h.`);
+    // cualquier pausa inesperada (p. ej. un echo mal clasificado). Con nombre de
+    // IG (o número de celular en WA) en vez del ID interno.
+    getDisplayName(userId).then((who) => sendTelegramAlert(isResume
+      ? `🤖 Clara reactivada en la conversación de ${who} (${channel || '?'}).`
+      : `🙋 Naty tomó la conversación de ${who} (${channel || '?'}). Clara pausada ${PAUSE_HOURS}h.`));
     res.json({ ok: true, paused: !isResume });
   } catch (err) {
     console.error('[/intervention] Error:', err.message);
@@ -1294,7 +1310,8 @@ async function claraResumeReply(userId, channel) {
     console.log(`[resume] ${userId} (${channel}) ← Clara retoma: "${text.slice(0, 60)}"`);
   } catch (err) {
     console.error(`[resume] ${userId} error:`, err.message);
-    sendTelegramAlert(`⚠️ Clara no pudo retomar la conversación ${userId} tras "te responde clara": ${err.message}`);
+    getDisplayName(userId).then((who) => sendTelegramAlert(
+      `⚠️ Clara no pudo retomar la conversación de ${who} tras "te responde clara": ${err.message}`));
   }
 }
 
@@ -1406,9 +1423,13 @@ app.post('/learn', async (req, res) => {
 });
 
 // ─── Endpoint de remarketing (n8n lo llama desde el workflow de re-engagement) ──
-// Body: { userId, channel }. Genera UN mensaje de reactivación contextual.
-// NO envía ni escribe en DB — eso lo hace n8n tras confirmar el envío.
-// Respuesta: { action:'send', message, channel, lead_temp, usage } | { action:'skip', reason }
+// Body: { userId, channel }. Genera UN mensaje de reactivación contextual, LO ENVÍA
+// por el canal y lo registra en la base con su external_message_id — todo acá (un
+// solo escritor). Antes el envío/registro lo hacía n8n en nodos posteriores, y como
+// el mid se registraba después de TODOS los envíos (batching de 12s), el echo de IG
+// llegaba antes que el registro y el workflow lo clasificaba como intervención de
+// Naty (pausa falsa de 48h).
+// Respuesta: { action:'sent', message, channel, lead_temp, message_id, usage } | { action:'skip', reason }
 //
 // Doble capa de calificación: el RPC en Supabase ya filtra lo barato (handoff por
 // número, pausa, opt-out, ventana). Acá Clara da el juicio final por contexto y, si
@@ -1517,8 +1538,33 @@ app.post('/remarketing', async (req, res) => {
     if (!message) return res.json({ action: 'skip', reason: 'empty_generation', usage });
     if (message.length > 600) message = message.slice(0, 600);
 
-    console.log(`[/remarketing] ${userId} → SEND (${leadTemp || '?'}) ch=${channel}: "${message.slice(0, 60)}"`);
-    return res.json({ action: 'send', channel: channel || 'whatsapp', message, lead_temp: leadTemp, usage });
+    const ch = channel || 'whatsapp';
+    let mid = null;
+    if (ch === 'instagram') mid = await sendInstagramMessage(userId, message);
+    else if (ch === 'whatsapp') mid = await sendWhatsAppMessage(userId, message);
+    else return res.status(400).json({ error: `canal desconocido: ${ch}` });
+
+    await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        conversation_id: userId, role: 'assistant', content: message,
+        sent_by: 'clara', external_message_id: mid,
+      }),
+    });
+    await fetch(`${SUPABASE_URL}/rest/v1/conversations?user_id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        remarketing_stage: 'window',
+        remarketing_count: 1,
+        remarketing_last_at: new Date().toISOString(),
+        lead_temp: leadTemp,
+      }),
+    });
+
+    console.log(`[/remarketing] ${userId} → SENT (${leadTemp || '?'}) ch=${ch} mid=${mid}: "${message.slice(0, 60)}"`);
+    return res.json({ action: 'sent', channel: ch, message, lead_temp: leadTemp, message_id: mid, usage });
   } catch (err) {
     console.error('[/remarketing] Error:', err.message);
     return res.status(500).json({ error: 'Error interno' });

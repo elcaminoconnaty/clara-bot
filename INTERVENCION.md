@@ -62,6 +62,41 @@ Generar identificador → app "CLara Bot N8N".
 - Verificado en producción: Naty devolvió el control a las 20:55:00 y Clara respondió a
   las 20:55:05 retomando la pregunta pendiente del cliente.
 
+## Pausas falsas y echoes automáticos (2026-07-16)
+
+Entre el 09 y el 16 de julio se acumularon **29 pausas falsas** ("Naty tomó el control"
+sin ser real) y Clara dejó sin responder preguntas de precio/fechas. Dos causas:
+
+1. **Auto-respuesta de Instagram/Meta** ("¡Hola! Indícanos cómo podemos ayudarte."):
+   llega como echo con `mid` desconocido, en pareja con un segundo evento SIN texto
+   (`[mensaje manual sin texto]`) en el mismo segundo. El clasificador la tomaba por Naty.
+2. **Carrera del remarketing**: el workflow enviaba por IG ("Enviar IG", batching 12s)
+   y registraba el `external_message_id` en un nodo posterior que corría cuando
+   terminaban TODOS los envíos; el echo llegaba antes (espera de solo 8s) → pausa falsa
+   con el propio texto de remarketing sembrado como si fuera de Naty (siempre a las
+   hh:00 UTC del cron `0 0 13-22 * * *`).
+
+**Fixes:**
+
+- **"Clasificar Echo" (workflow IG)** ignora ahora: echoes sin texto (decisión de Nico:
+  si Naty interviene solo con foto/audio/sticker, NO pausa — pausa con cualquier texto
+  suyo o con el panel) y el texto de la auto-respuesta de Meta (comparación normalizada
+  sin tildes/puntuación).
+- **Remarketing con un solo escritor**: `/remarketing` en server.js ahora genera, ENVÍA
+  (reusa `sendInstagramMessage`/`sendWhatsAppMessage`) y registra mensaje + conversación
+  (remarketing_stage/count/last_at, lead_temp) él mismo, devolviendo `action:'sent'`.
+  El workflow `Clara - Remarketing 24h` quedó reducido a Cron → Buscar Candidatos →
+  Generar Mensaje. Compatibilidad: el workflow viejo filtraba `action=='send'`, así que
+  con `'sent'` no duplicaba envíos durante la transición.
+- **Alertas de Telegram con nombre**: `/intervention` y el error de reanudación usan
+  `getDisplayName()` (server.js): display_name de IG ("Nombre (@usuario)") o el número
+  de celular en WA, en vez del ID interno.
+
+**Reparación de datos** (script `repair-pauses.py`, sesión 2026-07-16): de 43 pausadas,
+17 falsas con pregunta pendiente se reanudaron vía `/intervention clara_resume` (Clara
+respondió de inmediato con contexto), 12 falsas sin pendiente se devolvieron a
+`status='clara'` en silencio, y 14 intervenciones reales de Naty quedaron intactas.
+
 ## Notas / historia
 
 - 2026-07-10: **fix login del panel** — el bug "pongo la contraseña y no carga nada" eran DOS cosas:
