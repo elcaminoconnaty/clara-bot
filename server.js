@@ -216,7 +216,9 @@ let lessonsCache = { text: null, loadedAt: 0 };
 async function getNatyLessons() {
   if (Date.now() - lessonsCache.loadedAt < LESSONS_TTL_MS) return lessonsCache.text;
   try {
-    const url = `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons&order=updated_at.desc&limit=1`;
+    // Solo la última versión APROBADA entra al system prompt. Las propuestas nuevas
+    // quedan en status='pending' hasta que Nico las revise/edite y apruebe.
+    const url = `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons&status=eq.approved&order=updated_at.desc&limit=1`;
     const r = await fetch(url, { headers: SB_HEADERS });
     const rows = r.ok ? await r.json() : [];
     lessonsCache = { text: (rows[0] && rows[0].lessons) || null, loadedAt: Date.now() };
@@ -286,7 +288,7 @@ async function setRemarketingStage(userId, stage) {
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `
-Eres Clara, parte del equipo de El Camino con Naty y Nico, y también de Camino Sacro, su agencia de viajes. No eres una agencia turística genérica — eres la primera persona que atiende a alguien cuya vida podría cambiar.
+Eres Clara, la asistente virtual del equipo de El Camino con Naty y Nico, y también de Camino Sacro, su agencia de viajes. Eres abierta sobre ser la asistente virtual del equipo, y quien te escribe puede preguntarte con total libertad lo que quiera para resolver sus dudas y descubrir qué ruta o experiencia es la suya. No eres una agencia turística genérica — eres la primera persona que atiende a alguien cuya vida podría cambiar.
 
 Tu misión no es solo informar — es ayudar a que la persona correcta encuentre la experiencia correcta, y guiarla naturalmente hacia dar el siguiente paso.
 
@@ -386,13 +388,13 @@ Clara detecta el contexto del primer mensaje y elige la apertura más adecuada. 
 
 CASO A — Saludo genérico sin contexto ("hola", "buenas", "información", "quiero saber más", o similar sin detalles):
 Usar esta apertura o una variante natural de ella:
-"¡Hola! 😊 Soy Clara, del equipo de Naty y Nico.
+"¡Hola! 😊 Soy Clara, la asistente virtual del equipo de El Camino con Naty y Camino Sacro.
 Cuéntame, ¿ya tienes una idea de cómo te gustaría vivir tu Camino?
 Por ejemplo si tienes fechas, si irías solo o acompañado... con eso te oriento mejor 🙌"
 
 CASO B — Saludo con algo de contexto pero sin decidir ("quiero información", "me gustaría saber qué opciones hay", "vi su perfil"):
 Usar esta apertura o una variante natural:
-"¡Hola! 😊 Soy Clara, del equipo de Naty y Nico.
+"¡Hola! 😊 Soy Clara, la asistente virtual del equipo de El Camino con Naty y Camino Sacro.
 Tenemos dos formas de vivir el Camino: una experiencia grupal transformadora con Naty como guía, y otra donde te organizamos todo a tu ritmo y en tus fechas. Cuéntame un poco qué tienes en mente y te oriento 🙌"
 
 CASO C — Llega preguntando por una experiencia o ruta específica (menciona "Camino Francés", "Sarria", "Portugués", una fecha, un precio):
@@ -617,6 +619,13 @@ Pagos: 30% para reservar / 30% hasta 30 octubre 2026 / 40% hasta 28 febrero 2027
 
 ---
 
+ALOJAMIENTOS — EL CAMINO CON NATY (grupos):
+El grupo se hospeda en alojamiento de todo tipo — pensión, albergue privado, hoteles y casas rurales/Pazos 5 estrellas. La combinación es intencional: es parte del propósito del Camino (el contraste lujo/sencillez es trabajo interior), y cada alojamiento está seleccionado como el mejor de su categoría, con lo mejor que ofrece el mercado. En los albergues privados, las habitaciones son privadas para el grupo.
+Parejas: siempre se cuida que la pareja quede junta en la misma habitación.
+Este tema se maneja con mucho tacto. Si la persona tiene dudas sobre el alojamiento, ofrecer una llamada con Naty y transmitir que cuidamos muchísimo la experiencia desde el alojamiento — nada se elige al azar, todo con un propósito claro.
+
+---
+
 SOBRE CAMINO SACRO — TE AGENCIAMOS TU CAMINO:
 
 Si alguien quiere organizar su Camino de Santiago de forma independiente — a su ritmo, en sus fechas, solo o en pareja — existe Camino Sacro, nuestra agencia, respaldada por Naty y Nico.
@@ -728,8 +737,8 @@ INSTRUCCIONES FINALES:
 - PROHIBIDO usar cualquier formato Markdown (negritas, cursivas, encabezados)
 - Máximo 500 caracteres por mensaje. Si requiere más, dividir en dos mensajes
 - Emojis con moderación — máximo uno o dos por mensaje
-- Nunca revelar que eres IA, bot ni tecnologías usadas
-- Si preguntan si eres IA: "Soy Clara, parte del equipo de Naty y Nico 😊"
+- Eres abierta sobre ser la asistente virtual del equipo. No hables de la tecnología concreta ni de los proveedores que te hacen funcionar.
+- Si preguntan si eres IA o un bot: "Soy Clara, la asistente virtual del equipo de Naty y Nico 😊 Pregúntame lo que quieras sobre el Camino."
 - Cuando alguien se despide, responder con calidez y dejar la puerta abierta
 
 ---
@@ -974,7 +983,7 @@ app.post('/chat', async (req, res) => {
     } else if (esMensajeSuelto) {
       introNote = '\n\nEsta persona te escribió directo con una pregunta o comentario sin saludar. Responde naturalmente y de forma directa a lo que preguntó, sin presentarte desde cero ni hacer un saludo largo. Puedes mencionar tu nombre solo si encaja de forma natural.';
     } else {
-      introNote = '\n\nEs tu primer mensaje con esta persona y te está saludando. Preséntate brevemente como Clara, la asistente de Naty para responder las primeras dudas, y menciona que puedes tardar unos segundos en responder.';
+      introNote = '\n\nEs tu primer mensaje con esta persona y te está saludando. Preséntate brevemente como Clara, la asistente virtual del equipo de El Camino con Naty y Camino Sacro, para responder las primeras dudas, y menciona que puedes tardar unos segundos en responder.';
     }
 
     let resendNote = '';
@@ -1326,9 +1335,11 @@ app.post('/learn', async (req, res) => {
       return res.status(401).json({ error: 'unauthorized' });
     }
 
-    // Última destilación (lecciones acumuladas + marca de tiempo de corte)
+    // Última destilación APROBADA (lecciones acumuladas + marca de tiempo de corte).
+    // Cada propuesta se construye sobre la última baseline aprobada, no sobre pendientes
+    // sin revisar.
     const lr = await fetch(
-      `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons,last_message_at&order=updated_at.desc&limit=1`,
+      `${SUPABASE_URL}/rest/v1/naty_lessons?select=lessons,last_message_at&status=eq.approved&order=updated_at.desc&limit=1`,
       { headers: SB_HEADERS },
     );
     if (!lr.ok) throw new Error(`Supabase naty_lessons ${lr.status}: ${await lr.text()}`);
@@ -1398,6 +1409,15 @@ app.post('/learn', async (req, res) => {
     const lessons = (textBlock ? textBlock.text : '').trim();
     if (!lessons) throw new Error('Claude devolvió lecciones vacías');
 
+    // Descarta propuestas pendientes anteriores: esta destilación re-procesa desde el
+    // último corte aprobado, así que es superset de cualquier pendiente sin aprobar.
+    const sr = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?status=eq.pending`, {
+      method: 'PATCH',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ status: 'superseded' }),
+    });
+    if (!sr.ok) console.warn(`[/learn] no se pudieron superseder pendientes: ${sr.status} ${await sr.text()}`);
+
     const lastMessageAt = natyMsgs[natyMsgs.length - 1].created_at;
     const ir = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons`, {
       method: 'POST',
@@ -1407,17 +1427,68 @@ app.post('/learn', async (req, res) => {
         examples: pairs,
         pairs_count: pairs.length,
         last_message_at: lastMessageAt,
+        status: 'pending', // NO entra al system prompt hasta que Nico la apruebe
       }),
     });
     if (!ir.ok) throw new Error(`Supabase insert naty_lessons ${ir.status}: ${await ir.text()}`);
 
-    lessonsCache = { text: lessons, loadedAt: Date.now() }; // aplicar de inmediato
+    // NO se toca lessonsCache: Clara sigue usando la versión aprobada hasta la aprobación.
     const usage = distill.usage;
-    console.log(`[/learn] OK — ${pairs.length} pares, tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
-    sendTelegramAlert(`📚 Aprendizaje semanal: Clara aprendió de ${pairs.length} respuestas de Naty. Lecciones actualizadas.`);
-    res.json({ ok: true, pairs: pairs.length, usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens }, lessons });
+    console.log(`[/learn] OK — ${pairs.length} pares (PENDIENTE de aprobación), tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
+    sendTelegramAlert(`📚 Nuevo aprendizaje propuesto (${pairs.length} intervenciones de Naty), PENDIENTE de aprobación. Clara sigue usando la versión aprobada. Revísalo y apruébalo con Claude Code.`);
+    res.json({ ok: true, status: 'pending', pairs: pairs.length, usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens }, lessons });
   } catch (err) {
     console.error('[/learn] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Aprobación de un aprendizaje propuesto (Nico lo activa desde Claude Code) ──
+// Body: { id, decision?: 'approve'|'reject', lessons? }.
+//  - approve: marca la fila 'approved' (con el texto editado si viene) y refresca el
+//    caché en memoria para que Clara la use de inmediato, sin esperar el refresh de 6h.
+//  - reject: marca la fila 'rejected'; Clara conserva la versión aprobada anterior.
+app.post('/learn/approve', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const { id, decision = 'approve', lessons } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'falta id' });
+    if (decision !== 'approve' && decision !== 'reject') {
+      return res.status(400).json({ error: "decision debe ser 'approve' o 'reject'" });
+    }
+
+    if (decision === 'reject') {
+      const rr = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: SB_HEADERS,
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+      if (!rr.ok) throw new Error(`Supabase reject ${rr.status}: ${await rr.text()}`);
+      console.log(`[/learn/approve] Rechazada la propuesta id=${id}.`);
+      return res.json({ ok: true, id, decision: 'rejected' });
+    }
+
+    // approve: aplica edición opcional + marca aprobada, y devuelve la fila resultante
+    const patch = { status: 'approved', updated_at: new Date().toISOString() };
+    if (typeof lessons === 'string' && lessons.trim()) patch.lessons = lessons.trim();
+    const ar = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { ...SB_HEADERS, Prefer: 'return=representation' },
+      body: JSON.stringify(patch),
+    });
+    if (!ar.ok) throw new Error(`Supabase approve ${ar.status}: ${await ar.text()}`);
+    const row = (await ar.json())[0];
+    if (!row) return res.status(404).json({ error: `no existe la fila id=${id}` });
+
+    lessonsCache = { text: row.lessons || null, loadedAt: Date.now() }; // aplicar al instante
+    console.log(`[/learn/approve] Aprobada la propuesta id=${id}${patch.lessons ? ' (editada)' : ''}.`);
+    sendTelegramAlert(`✅ Aprendizaje aprobado y activado (id ${id}). Clara ya lo está usando.`);
+    res.json({ ok: true, id, decision: 'approved', edited: !!patch.lessons, lessons: row.lessons });
+  } catch (err) {
+    console.error('[/learn/approve] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
