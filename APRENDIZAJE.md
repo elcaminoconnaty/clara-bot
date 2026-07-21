@@ -51,9 +51,13 @@ Ningún aprendizaje entra al system prompt sin aprobación. Flujo:
      `updated_at=now()` y refresca el caché en memoria → Clara la usa al instante.
    - `reject`: marca la fila `rejected`; Clara conserva la aprobada anterior.
 
-> **Protocolo para futuras sesiones**: al revisar una propuesta, presentar SIEMPRE las 4
-> secciones numeradas una por una y esperar decisión de Nico en cada una antes de aprobar el
-> conjunto. Nunca activar sin su OK explícito.
+> **Protocolo para futuras sesiones** (obligatorio):
+> 1. SIEMPRE presentar los aprendizajes/insights para aprobación con una **tabla comparativa**
+>    de **qué estaba (antes)** vs **qué va a cambiar (después)** — fila por fila, marcando lo
+>    nuevo, lo modificado y lo eliminado. Nunca mostrar solo el texto nuevo.
+> 2. Revisar sección por sección (Tono / Datos / Objeciones / Ejemplos); esperar la decisión de
+>    Nico en cada una antes de aprobar el conjunto.
+> 3. Nunca activar sin su OK explícito.
 
 ## Operación
 
