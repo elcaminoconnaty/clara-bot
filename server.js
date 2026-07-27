@@ -229,16 +229,34 @@ async function getNatyLessons() {
   return lessonsCache.text;
 }
 
-// Aviso corto a Telegram (mismo bot del reporte diario). Nunca lanza: solo advierte.
-async function sendTelegramAlert(text) {
+// Aviso a Telegram (mismo bot del reporte diario). Nunca lanza: solo advierte.
+// `extra` se mezcla en el body para avisos que necesitan formato (parse_mode) o
+// quieren evitar la tarjeta de previsualización de un enlace.
+const TELEGRAM_MAX_CHARS = 4096;
+
+// "16 jul" — para las ventanas de fecha de los avisos.
+function fechaCorta(iso) {
+  return new Date(iso).toLocaleDateString('es-CO', {
+    day: 'numeric', month: 'short', timeZone: 'America/Bogota',
+  });
+}
+
+// Primer renglón de un mensaje, recortado, para que el aviso diga de qué iba.
+function primerRenglon(text, max = 80) {
+  const linea = String(text || '').split('\n')[0].trim();
+  return linea.length > max ? `${linea.slice(0, max - 1)}…` : linea;
+}
+
+async function sendTelegramAlert(text, extra = {}) {
   const token = process.env.TELEGRAM_ALERT_TOKEN;
   const chat = process.env.TELEGRAM_ALERT_CHAT;
   if (!token || !chat) return;
+  const body = String(text).slice(0, TELEGRAM_MAX_CHARS); // Telegram rechaza mensajes más largos
   try {
     const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text }),
+      body: JSON.stringify({ chat_id: chat, text: body, ...extra }),
     });
     if (!r.ok) console.warn('[telegram] sendMessage error:', r.status, await r.text());
   } catch (err) {
@@ -1139,7 +1157,8 @@ app.post('/intervention', async (req, res) => {
     // IG (o número de celular en WA) en vez del ID interno.
     getDisplayName(userId).then((who) => sendTelegramAlert(isResume
       ? `🤖 Clara reactivada en la conversación de ${who} (${channel || '?'}).`
-      : `🙋 Naty tomó la conversación de ${who} (${channel || '?'}). Clara pausada ${PAUSE_HOURS}h.`));
+      : `🙋 Naty tomó la conversación de ${who} (${channel || '?'}). Clara pausada ${PAUSE_HOURS}h.`
+        + (message ? `\n💬 "${primerRenglon(message)}"` : '')));
     res.json({ ok: true, paused: !isResume });
   } catch (err) {
     console.error('[/intervention] Error:', err.message);
@@ -1328,6 +1347,10 @@ async function claraResumeReply(userId, channel) {
 // Destila las respuestas manuales de Naty desde la última corrida en lecciones
 // acumuladas para Clara. Si Naty no intervino, no llama a Claude (costo $0).
 
+// Separa el documento de lecciones del changelog dentro de la misma respuesta de Claude:
+// el changelog es lo que viaja al aviso de Telegram, las lecciones son lo que se guarda.
+const CHANGELOG_MARKER = '=== CAMBIOS ===';
+
 app.post('/learn', async (req, res) => {
   try {
     const expected = process.env.INTERVENTION_SECRET;
@@ -1392,10 +1415,19 @@ app.post('/learn', async (req, res) => {
         + '2. Información y datos que Naty usó y Clara debe conocer: ...\n'
         + '3. Cómo maneja Naty objeciones y casos especiales: ...\n'
         + '4. Ejemplos reales (máximo 8, "Cliente: ... → Naty: ..."): ...\n\n'
+        + `Después del documento, escribe en una línea aparte el marcador ${CHANGELOG_MARKER} y debajo `
+        + 'de 4 a 8 viñetas cortas con lo que cambia respecto a las LECCIONES ACUMULADAS, cada una '
+        + 'empezando por NUEVO:, MODIFICADO: o ELIMINADO:. Es lo único que Nico ve en el aviso de '
+        + 'Telegram para decidir si revisa la propuesta, así que sé concreto y no lo adornes.\n\n'
         + 'Reglas: máximo ~600 palabras. Integra las lecciones anteriores con las nuevas sin perder '
         + 'lo valioso; elimina redundancias. Solo incluye lecciones con sustento en los mensajes; no '
-        + 'inventes datos (precios, fechas) que Naty no haya dicho. Ignora mensajes de prueba internos '
-        + 'del equipo si son evidentes. Sin asteriscos ni markdown.',
+        + 'inventes datos (precios, fechas) que Naty no haya dicho. NUNCA elimines ni suavices las '
+        + 'guardas de la versión anterior — prohibiciones explícitas ("Clara no da cifras"), '
+        + 'prioridades ("hay urgencia real") y negativas ("no desde Ferrol") — salvo que las nuevas '
+        + 'intervenciones de Naty las contradigan directamente; si aun así eliminas alguna, decláralo '
+        + 'en CAMBIOS. No repitas datos de contacto (teléfonos, correos) ni políticas que ya estén en '
+        + 'el prompt base de Clara. Ignora mensajes de prueba internos del equipo si son evidentes. '
+        + 'Sin asteriscos ni markdown.',
       messages: [{
         role: 'user',
         content:
@@ -1406,7 +1438,10 @@ app.post('/learn', async (req, res) => {
     });
 
     const textBlock = distill.content.find((b) => b.type === 'text');
-    const lessons = (textBlock ? textBlock.text : '').trim();
+    const raw = (textBlock ? textBlock.text : '').trim();
+    const [lessonsPart, changelogPart = ''] = raw.split(CHANGELOG_MARKER);
+    const lessons = lessonsPart.trim();
+    const changelog = changelogPart.trim();
     if (!lessons) throw new Error('Claude devolvió lecciones vacías');
 
     // Descarta propuestas pendientes anteriores: esta destilación re-procesa desde el
@@ -1419,9 +1454,11 @@ app.post('/learn', async (req, res) => {
     if (!sr.ok) console.warn(`[/learn] no se pudieron superseder pendientes: ${sr.status} ${await sr.text()}`);
 
     const lastMessageAt = natyMsgs[natyMsgs.length - 1].created_at;
+    // return=representation para tener el id en el aviso: sin él tocaba buscarlo a mano
+    // en Supabase antes de poder aprobar nada.
     const ir = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons`, {
       method: 'POST',
-      headers: SB_HEADERS,
+      headers: { ...SB_HEADERS, Prefer: 'return=representation' },
       body: JSON.stringify({
         lessons,
         examples: pairs,
@@ -1431,12 +1468,21 @@ app.post('/learn', async (req, res) => {
       }),
     });
     if (!ir.ok) throw new Error(`Supabase insert naty_lessons ${ir.status}: ${await ir.text()}`);
+    const nuevaId = ((await ir.json())[0] || {}).id;
 
     // NO se toca lessonsCache: Clara sigue usando la versión aprobada hasta la aprobación.
     const usage = distill.usage;
-    console.log(`[/learn] OK — ${pairs.length} pares (PENDIENTE de aprobación), tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
-    sendTelegramAlert(`📚 Nuevo aprendizaje propuesto (${pairs.length} intervenciones de Naty), PENDIENTE de aprobación. Clara sigue usando la versión aprobada. Revísalo y apruébalo con Claude Code.`);
-    res.json({ ok: true, status: 'pending', pairs: pairs.length, usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens }, lessons });
+    console.log(`[/learn] OK — id=${nuevaId}, ${pairs.length} pares (PENDIENTE de aprobación), tokens in=${usage.input_tokens} out=${usage.output_tokens}`);
+    const ventana = `${fechaCorta(natyMsgs[0].created_at)} → ${fechaCorta(lastMessageAt)}`;
+    sendTelegramAlert(
+      `📚 Aprendizaje #${nuevaId} PENDIENTE de aprobación\n`
+      + `${pairs.length} intervenciones de Naty · ${ventana}\n`
+      + `Clara sigue con la versión aprobada.\n\n`
+      + (changelog ? `Qué cambiaría:\n${changelog}\n\n` : '')
+      + `En Claude Code: "revisa el aprendizaje pendiente de Clara"`,
+      { disable_web_page_preview: true },
+    );
+    res.json({ ok: true, status: 'pending', id: nuevaId, pairs: pairs.length, usage: { input_tokens: usage.input_tokens, output_tokens: usage.output_tokens }, lessons, changelog });
   } catch (err) {
     console.error('[/learn] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -1460,6 +1506,22 @@ app.post('/learn/approve', async (req, res) => {
       return res.status(400).json({ error: "decision debe ser 'approve' o 'reject'" });
     }
 
+    // Solo se decide sobre propuestas sin revisar: un PATCH ciego por id revivía filas
+    // ya rechazadas o supersedidas y las volvía a meter al system prompt de Clara.
+    const cur = await fetch(
+      `${SUPABASE_URL}/rest/v1/naty_lessons?id=eq.${encodeURIComponent(id)}&select=id,status`,
+      { headers: SB_HEADERS },
+    );
+    if (!cur.ok) throw new Error(`Supabase read ${cur.status}: ${await cur.text()}`);
+    const actual = (await cur.json())[0];
+    if (!actual) return res.status(404).json({ error: `no existe la fila id=${id}` });
+    if (actual.status !== 'pending') {
+      return res.status(409).json({
+        error: `la fila id=${id} está en '${actual.status}', no en 'pending'`,
+        status: actual.status,
+      });
+    }
+
     if (decision === 'reject') {
       const rr = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
@@ -1470,6 +1532,15 @@ app.post('/learn/approve', async (req, res) => {
       console.log(`[/learn/approve] Rechazada la propuesta id=${id}.`);
       return res.json({ ok: true, id, decision: 'rejected' });
     }
+
+    // Solo puede haber una fila aprobada: si no, getNatyLessons() queda dependiendo del
+    // desempate por updated_at para saber cuál es la vigente.
+    const vr = await fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?status=eq.approved`, {
+      method: 'PATCH',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ status: 'superseded' }),
+    });
+    if (!vr.ok) console.warn(`[/learn/approve] no se pudo superseder la aprobada anterior: ${vr.status} ${await vr.text()}`);
 
     // approve: aplica edición opcional + marca aprobada, y devuelve la fila resultante
     const patch = { status: 'approved', updated_at: new Date().toISOString() };
@@ -1489,6 +1560,29 @@ app.post('/learn/approve', async (req, res) => {
     res.json({ ok: true, id, decision: 'approved', edited: !!patch.lessons, lessons: row.lessons });
   } catch (err) {
     console.error('[/learn/approve] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Propuesta pendiente + versión vigente, para revisarlas juntas ─────────────
+// La revisión con Nico es una tabla comparativa antes/después, así que hace falta
+// leer las dos filas a la vez; sin esto tocaba consultar Supabase a mano.
+app.get('/learn/pending', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const campos = 'id,lessons,pairs_count,last_message_at,updated_at,status';
+    const [pr, ap] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?select=${campos}&status=eq.pending&order=id.desc&limit=1`, { headers: SB_HEADERS }),
+      fetch(`${SUPABASE_URL}/rest/v1/naty_lessons?select=${campos}&status=eq.approved&order=updated_at.desc&limit=1`, { headers: SB_HEADERS }),
+    ]);
+    if (!pr.ok) throw new Error(`Supabase pending ${pr.status}: ${await pr.text()}`);
+    if (!ap.ok) throw new Error(`Supabase approved ${ap.status}: ${await ap.text()}`);
+    res.json({ ok: true, pending: (await pr.json())[0] || null, approved: (await ap.json())[0] || null });
+  } catch (err) {
+    console.error('[/learn/pending] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
