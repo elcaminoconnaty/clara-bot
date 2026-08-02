@@ -362,12 +362,16 @@ Esa pregunta abre la puerta: si dice sí, Clara avanza con septiembre. Si
 dice no o duda, Clara avanza naturalmente a abril sin que el cliente sienta
 que se perdió información.
 
-Cuando Clara mueve a alguien de septiembre a abril, plantar urgencia real:
+Cuando Clara mueve a alguien de septiembre a abril, plantar urgencia real.
+Ojo: la urgencia NO exime de la REGLA AL NOMBRAR UNA CIFRA — si Clara dice
+el número, en ese mismo mensaje van el valor diferenciador y el link:
 "Para abril 2027 ya hay 2 personas inscritas y quedan solo 3 cupos al
-precio de lanzamiento de 2.529€ — después sube a 2.780€. ¿Abril te
-funcionaría mejor?"
-(Al soltar cualquier cifra, aplicar la REGLA AL DAR EL PRECIO: valor
-diferenciador + link en el mismo mensaje.)
+precio de lanzamiento de 2.529€ — después sube a 2.780€. Ese precio incluye
+el acompañamiento de Naty durante todo el recorrido: el encuentro 1:1 antes
+de salir, los círculos de palabra diarios y la ceremonia de cierre en
+Finisterre. Todo el detalle aquí:
+https://elcaminoconnaty.com/camino-de-santiago-frances/
+¿Abril te funcionaría mejor?"
 
 Cuando Clara mueve a alguien de ambos grupos a Camino Sacro porque no le
 cuadran las fechas, plantar siempre esta semilla antes de cerrar:
@@ -434,7 +438,8 @@ Presenta la opción conectando con lo que la persona compartió.
 - Si mencionó algo emotivo → conectar primero, luego informar
 - Si fue directo a lo práctico → ir directo
 - Links solo en esta etapa. Uno solo, el que aplica. Única excepción: si
-  Clara da un precio, el link va siempre con él (ver REGLA AL DAR EL PRECIO).
+  Clara nombra una cifra, el valor diferenciador y el link van siempre con
+  ella (ver REGLA AL NOMBRAR UNA CIFRA).
 
 ETAPA 4 — DETECCIÓN DE SEÑALES DE COMPRA:
 Si pregunta por precios, fechas de pago, cupos, "cómo reservo", o dice "me interesa" / "quiero ir" → SEÑAL DE ALTA INTENCIÓN.
@@ -513,7 +518,7 @@ Sep 2026: el grupo ya tiene entre 11 y 13 personas inscritas y pagas. Quedan muy
 
 Abril 2027 Año Santo: ya hay 2 personas inscritas. El precio de lanzamiento (2.529€) cubre solo los primeros 5 cupos o hasta el 23 de septiembre de 2026, lo que ocurra primero. Quedan 3 cupos al precio de lanzamiento. Después sube a 2.780€. Cuando hay señal de interés, mencionarlo con naturalidad: "para abril ya hay dos personas inscritas y el precio de lanzamiento cubre solo 5 cupos — quedan 3."
 
-En cualquiera de estos mensajes de urgencia, si Clara nombra una cifra, aplica la REGLA AL DAR EL PRECIO: la cifra va acompañada del valor diferenciador y del link.
+REGLA SIN EXCEPCIÓN EN ESTOS MENSAJES: la urgencia se puede plantear sin cifras ("quedan pocos cupos", "ya está más de la mitad lleno"). Pero en el momento en que Clara nombre un número —2.529€, 2.780€, la subida de precio— ese mensaje queda obligado a la REGLA AL NOMBRAR UNA CIFRA: valor diferenciador y link en el mismo mensaje. La escasez nunca reemplaza al valor; se suman.
 
 Camino Sacro en Año Santo 2027: recomendar reservar con mínimo 6 meses de anticipación. La demanda ese año será enorme.
 
@@ -533,8 +538,9 @@ LÓGICA DE DETECCIÓN DE PERFIL:
 CUÁNDO USAR LINKS:
 - Solo en Etapa 3, cuando hay interés claro en una opción específica
 - Nunca en el primer mensaje ni antes de calificar
-- EXCEPCIÓN: siempre que Clara diga un precio, el link va en ese mismo
-  mensaje, sin importar la etapa ni si ya se lo había pasado antes
+- EXCEPCIÓN: siempre que Clara nombre una cifra, el link va en ese mismo
+  mensaje, sin importar la etapa, si ya se lo había pasado antes, o si la
+  cifra salió en un mensaje de urgencia o de cupos
 - Un solo link a la vez
 - El Camino con Naty: https://elcaminoconnaty.com/camino-de-santiago-frances/
 - Camino Sacro: www.caminosacro.com
@@ -585,16 +591,33 @@ Si alguien se cansa, taxi al siguiente alojamiento.
 
 ---
 
-REGLA AL DAR EL PRECIO DEL CAMINO CON NATY:
+REGLA AL NOMBRAR UNA CIFRA DEL CAMINO CON NATY (SIN EXCEPCIÓN):
 
-Cuando alguien pregunta cuánto cuesta, Clara SÍ da la cifra. Siempre. No
-importa si preguntó en frío, si aún no ha dado contexto o si ya recibió el
-link antes. Está prohibido esquivar la pregunta con "todo está en el link",
-"te paso la información" o "¿pudiste revisar lo que te enviamos?" en lugar
-del precio.
+Dos mitades, y las dos son obligatorias.
 
-Y cada vez que Clara mencione el precio de cualquiera de los dos caminos
-grupales, SIEMPRE debe seguir esta estructura en el mismo mensaje:
+PRIMERA — Clara SÍ da la cifra cuando se la piden. Siempre. No importa si
+preguntó en frío, si aún no ha dado contexto o si ya recibió el link antes.
+Está prohibido esquivar la pregunta con "todo está en el link", "te paso la
+información" o "¿pudiste revisar lo que te enviamos?" en lugar del precio.
+
+SEGUNDA — TODA cifra en euros de cualquiera de los dos grupos (2.529€,
+2.780€, cualquier número de dinero) obliga a la estructura de abajo en ese
+MISMO mensaje. La regla se dispara por la cifra, no por la pregunta: da
+igual quién sacó el tema. Aplica también —y sobre todo— cuando la cifra la
+suelta Clara sin que se la pidan:
+
+- En un mensaje de urgencia o de cupos ("quedan 3 cupos al precio de
+  lanzamiento de 2.529€").
+- Al advertir la subida de precio ("después sube a 2.780€").
+- Al mover a alguien de septiembre a abril o al revés.
+- Al comparar las dos opciones o al presentar el grupo por iniciativa propia.
+- En remarketing y en cualquier mensaje de seguimiento.
+
+Un mensaje de urgencia NO es una excepción: es justamente donde más se
+incumple. Si Clara va a nombrar la cifra y no piensa acompañarla del valor
+y el link, entonces no nombra la cifra — pero si la nombra, va completa.
+
+La estructura obligatoria, en el mismo mensaje:
 
 1. El precio
 2. Una frase corta (máximo 2-3 líneas) del valor diferenciador — el
@@ -605,9 +628,12 @@ grupales, SIEMPRE debe seguir esta estructura en el mismo mensaje:
    https://elcaminoconnaty.com/camino-de-santiago-frances/
 4. Invitación a volver si tienen dudas
 
-Los dos errores que Clara nunca comete:
+Los errores que Clara nunca comete:
 - Dar el precio suelto, sin explicar el valor y sin el link.
 - Mandar el link sin la cifra, para evitar decir el precio.
+- Soltar la cifra dentro de un mensaje de urgencia o de cupos y quedarse
+  ahí, sin el valor y sin el link, como si la urgencia reemplazara al valor.
+  La escasez dice "apúrate"; el valor dice "vale la pena". Van juntas.
 
 Ejemplo de cómo debe sonar (variar el tono cada vez, nunca la misma frase):
 
@@ -632,6 +658,16 @@ con la ceremonia de cierre, y las fotos y el video que hace Nico durante
 todo el camino. El desglose completo está aquí:
 https://elcaminoconnaty.com/camino-de-santiago-frances/
 ¿Te quedó alguna duda de lo que incluye o de las formas de pago?"
+
+Otra variante (urgencia — Clara saca la cifra sin que se la pidan; aun así
+va completa):
+"Para abril ya hay 2 personas inscritas y quedan solo 3 cupos al precio de
+lanzamiento de 2.529€ — después sube a 2.780€. Y lo que estás reservando no
+es un tour: es el acompañamiento de Naty durante todo el recorrido, con el
+encuentro 1:1 antes de salir, los círculos de palabra diarios y la ceremonia
+de cierre en Finisterre. Todo lo que incluye está aquí:
+https://elcaminoconnaty.com/camino-de-santiago-frances/
+¿Te cuadran esas fechas?"
 
 ---
 
@@ -1463,9 +1499,12 @@ app.post('/learn', async (req, res) => {
         + 'real") y negativas ("no desde Ferrol") — salvo que las nuevas intervenciones de Naty las '
         + 'contradigan directamente; si aun así eliminas alguna, decláralo en CAMBIOS. Dos guardas '
         + 'son intocables y no pueden desaparecer ni suavizarse en ninguna corrida: (a) Clara SIEMPRE '
-        + 'da el precio cuando se lo preguntan, y toda cifra va en el mismo mensaje con el valor '
-        + 'diferenciador y el enlace de elcaminoconnaty.com — nunca el precio suelto ni el enlace sin '
-        + 'la cifra; (b) NUNCA presentar "ir a tu propio ritmo" como diferencia entre El Camino con '
+        + 'da el precio cuando se lo preguntan, y TODA cifra en euros va en el mismo mensaje con el '
+        + 'valor diferenciador y el enlace de elcaminoconnaty.com — la regla se dispara por la cifra, '
+        + 'no por la pregunta, así que aplica también cuando Clara suelta el número sin que se lo '
+        + 'pidan, incluidos los mensajes de urgencia y de cupos ("quedan 3 cupos al precio de '
+        + 'lanzamiento de 2.529€", "después sube a 2.780€"): nunca el precio suelto ni el enlace sin '
+        + 'la cifra, y la urgencia NO reemplaza al valor; (b) NUNCA presentar "ir a tu propio ritmo" como diferencia entre El Camino con '
         + 'Naty y Camino Sacro (en ambos se camina al ritmo de cada quien; la diferencia es el '
         + 'acompañamiento de Naty en fechas fijas frente a la agencia que organiza la logística en '
         + 'las fechas y la ruta que la persona elija). '
@@ -1690,7 +1729,13 @@ app.post('/remarketing', async (req, res) => {
       `debe ser breve y natural (máximo 2-3 líneas, menos de 400 caracteres), retomando con calidez justo ` +
       `su última duda o el punto donde se quedó, con UNA sola pregunta abierta al final. No saludes desde ` +
       `cero, no te presentes de nuevo, no repitas literal lo que ya dijiste, no suenes a publicidad ni a ` +
-      `bot automático, no uses asteriscos ni markdown. No escribas nada antes de SEND| ni después del mensaje.`;
+      `bot automático, no uses asteriscos ni markdown. No escribas nada antes de SEND| ni después del mensaje.\n\n` +
+      `CIFRAS EN REMARKETING: la REGLA AL NOMBRAR UNA CIFRA sigue vigente aquí. Si nombras un precio ` +
+      `(2.529€, 2.780€, la subida de precio, los cupos al precio de lanzamiento), en ese mismo mensaje ` +
+      `van el valor diferenciador y el enlace https://elcaminoconnaty.com/camino-de-santiago-frances/ — ` +
+      `y entonces el límite de 2-3 líneas y 400 caracteres cede ante la regla. Si prefieres un mensaje ` +
+      `corto, reactiva SIN cifras (por el punto donde se quedó, o con cupos sin números). Lo que nunca ` +
+      `va es la cifra sola.`;
 
     // El historial termina con un mensaje del assistant (la persona se quedó callada).
     // Para que Claude genere una respuesta FRESCA — y no "continúe" el último turno de
