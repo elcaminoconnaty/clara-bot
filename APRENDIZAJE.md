@@ -33,10 +33,19 @@
      `=== CAMBIOS ===`, de 4 a 8 viñetas `NUEVO:/MODIFICADO:/ELIMINADO:`. El servidor parte la
      respuesta: lo de arriba se guarda en `lessons`, lo de abajo viaja al aviso de Telegram.
    - **Guarda anti-erosión** en el prompt del destilador: no puede eliminar ni suavizar las
-     prohibiciones ("Clara no da cifras"), prioridades ("hay urgencia real") ni negativas
-     ("no desde Ferrol") de la versión anterior salvo que Naty las contradiga, y si lo hace
-     debe declararlo en CAMBIOS. Tampoco puede repetir teléfonos ni políticas que ya estén en
-     el `SYSTEM_PROMPT`. (La propuesta #4 borró las tres guardas y duplicó el celular de Naty.)
+     prohibiciones, prioridades ("hay urgencia real") ni negativas ("no desde Ferrol") de la
+     versión anterior salvo que Naty las contradiga, y si lo hace debe declararlo en CAMBIOS.
+     Tampoco puede repetir teléfonos ni políticas que ya estén en el `SYSTEM_PROMPT`.
+     (La propuesta #4 borró las tres guardas y duplicó el celular de Naty.)
+   - **Dos guardas declaradas intocables** en ese mismo prompt, que ninguna corrida puede
+     tocar: (a) Clara siempre da el precio cuando se lo piden, y **toda cifra** en euros va en
+     el mismo mensaje con valor diferenciador + enlace — la regla **se dispara por la cifra, no
+     por la pregunta**, así que cubre también los mensajes de urgencia y cupos ("quedan 3 cupos
+     al precio de lanzamiento de 2.529€"); (b) nunca presentar "ir a tu propio ritmo" como
+     diferencia entre El Camino con Naty y Camino Sacro.
+   - ⚠️ **Ojo con las guardas obsoletas:** `"Clara no da cifras"` fue guarda intocable hasta el
+     2026-07-30 y hoy es **exactamente lo contrario** de la regla vigente. Lo que queda obsoleto
+     hay que **sacarlo** de la lista de intocables, o el destilador lo reinstala.
 3. **Workflow n8n `Clara - Aprendizaje semanal`** (`q82Uw0Krdd9MaZuq`): cron
    `0 0 1 * * 1` → `POST /learn`. Ojo: las corridas reales caen **05:00 UTC = lunes 00:00
    Bogotá**, no domingo 8pm como dice la descripción del workflow — la instancia de n8n
@@ -104,4 +113,4 @@ Ningún aprendizaje entra al system prompt sin aprobación. Flujo:
 | 1 | `superseded` | 29 | Primera destilación (2026-07-10). |
 | 2 | `superseded` | 32 | 2026-07-13. |
 | 3 | `superseded` | 34 | Aprobada editada el 2026-07-21: se le metió a mano la prioridad absoluta de septiembre. |
-| 4 | **`approved`** | 26 | 16–24 jul. Aprobada editada el 2026-07-27. Aportó la política del Camino Portugués y "ruta no disponible en grupo"; se le re-inyectaron las 3 guardas que había borrado (urgencia de septiembre, "Clara no da cifras", "no desde Ferrol") y los 2 ejemplos eliminados, y se le quitó el celular de Naty (ya está en el `SYSTEM_PROMPT`, `server.js:425` y `:715`). |
+| 4 | **`approved`** | 26 | 16–24 jul. Aprobada editada el 2026-07-27. Aportó la política del Camino Portugués y "ruta no disponible en grupo"; se le re-inyectaron las 3 guardas que había borrado (urgencia de septiembre, "Clara no da cifras", "no desde Ferrol") y los 2 ejemplos eliminados, y se le quitó el celular de Naty (ya está en el `SYSTEM_PROMPT`). **Editada dos veces más por `execute_sql`:** el 2026-07-30 se invirtió "Clara no da cifras" → Clara **sí** da el precio con valor + enlace (§2, §3 y ejemplos 1 y 3), y el 2026-08-02 se amplió §3 para que la regla se dispare **por la cifra, no por la pregunta** (cubre urgencia, cupos y remarketing). 5901 → 6418 caracteres. |
