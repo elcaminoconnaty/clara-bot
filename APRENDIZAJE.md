@@ -37,12 +37,16 @@
      versión anterior salvo que Naty las contradiga, y si lo hace debe declararlo en CAMBIOS.
      Tampoco puede repetir teléfonos ni políticas que ya estén en el `SYSTEM_PROMPT`.
      (La propuesta #4 borró las tres guardas y duplicó el celular de Naty.)
-   - **Dos guardas declaradas intocables** en ese mismo prompt, que ninguna corrida puede
+   - **Tres guardas declaradas intocables** en ese mismo prompt, que ninguna corrida puede
      tocar: (a) Clara siempre da el precio cuando se lo piden, y **toda cifra** en euros va en
      el mismo mensaje con valor diferenciador + enlace — la regla **se dispara por la cifra, no
      por la pregunta**, así que cubre también los mensajes de urgencia y cupos ("quedan 3 cupos
      al precio de lanzamiento de 2.529€"); (b) nunca presentar "ir a tu propio ritmo" como
-     diferencia entre El Camino con Naty y Camino Sacro.
+     diferencia entre El Camino con Naty y Camino Sacro; (c) las tarifas de **Camino Sacro son
+     de 2026** y las de 2027 no están oficiales — toda cifra de esa lista va con la aclaración
+     del año y la remisión a Nico, y está prohibido estimar cuánto subirá en 2027. La (c) es
+     **solo de Camino Sacro**: los precios del grupo con Naty (2.529€ / 2.780€) son oficiales y
+     se dan sin advertencia de año.
    - ⚠️ **Ojo con las guardas obsoletas:** `"Clara no da cifras"` fue guarda intocable hasta el
      2026-07-30 y hoy es **exactamente lo contrario** de la regla vigente. Lo que queda obsoleto
      hay que **sacarlo** de la lista de intocables, o el destilador lo reinstala.
