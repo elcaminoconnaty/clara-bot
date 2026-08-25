@@ -1536,7 +1536,10 @@ app.post('/learn', async (req, res) => {
     console.log(`[/learn] Destilando ${pairs.length} intervenciones de Naty desde ${since}...`);
     const distill = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      // 4000, no 1500: en la misma llamada vienen las lecciones Y el changelog
+      // tras `=== CAMBIOS ===`. La propuesta #10 (24-ago) se cortó a media frase
+      // y sin la sección de ejemplos porque no cabía. Corre 1 vez/semana.
+      max_tokens: 4000,
       system:
         'Eres el sistema de aprendizaje de Clara, la asistente virtual de "El Camino con Naty" '
         + '(caminatas guiadas del Camino de Santiago para colombianos). Naty a veces responde '
