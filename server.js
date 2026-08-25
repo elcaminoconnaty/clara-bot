@@ -1154,14 +1154,16 @@ app.post('/chat', async (req, res) => {
       max_tokens: 1024,
       system: [
         {
-          // Estático — se cachea (62% hit rate, ahorra ~$1.80/mes)
+          // Estático — se cachea con TTL de 1h. Medido el 25-ago-2026 sobre 2.761
+          // llamadas: el 86.9% llega a <60min de la anterior vs 64.1% a <5min,
+          // así que las escrituras caen de ~496 a ~181/mes (~$7.5/mes menos).
           type: 'text',
           text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' }
+          cache_control: { type: 'ephemeral', ttl: '1h' }
         },
         // Lecciones destiladas de las respuestas reales de Naty — bloque cacheado
         // aparte: solo invalida su segmento cuando cambian (1 vez/semana máx).
-        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral', ttl: '1h' } }] : []),
         {
           // Dinámico — fecha, intro, nota admin, contexto de Naty. No se cachea.
           type: 'text',
@@ -1432,8 +1434,8 @@ async function claraResumeReply(userId, channel) {
       max_tokens: 1024,
       system: [
         // Mismos bloques cacheados que /chat → comparte cache hits.
-        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral', ttl: '1h' } }] : []),
         { type: 'text', text: `La fecha de hoy es: ${today}.${NATY_CONTEXT_NOTE}` },
       ],
       messages: convo,
@@ -1822,9 +1824,9 @@ app.post('/remarketing', async (req, res) => {
           // Mismo bloque estático cacheado que /chat → comparte cache hits.
           type: 'text',
           text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
+          cache_control: { type: 'ephemeral', ttl: '1h' },
         },
-        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral' } }] : []),
+        ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral', ttl: '1h' } }] : []),
         {
           type: 'text',
           text: `La fecha de hoy es: ${today}.`,
