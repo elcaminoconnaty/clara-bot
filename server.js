@@ -1375,23 +1375,33 @@ app.post('/send', async (req, res) => {
 // Cuando Naty devuelve la conversación con "te responde clara", Clara NO espera a
 // que el cliente escriba: lee todo el contexto (incluido lo que Naty habló) y
 // retoma el hilo de inmediato, respondiendo lo que quedó pendiente.
-async function claraResumeReply(userId, channel) {
+const NOTA_RETOMA_NATY =
+  'NOTA INTERNA DEL SISTEMA (el cliente no ve este mensaje): Naty acaba de devolverte '
+  + 'esta conversación escribiendo "te responde Clara". Revisa todo el historial — en '
+  + 'especial lo último que el cliente pidió y lo que Naty ya le dijo o prometió — y '
+  + 'respóndele AHORA retomando el hilo con naturalidad: responde lo que quedó pendiente '
+  + 'o continúa la conversación donde iba. No saludes desde cero, no te presentes, no '
+  + 'repitas lo que Naty ya dijo, y no menciones esta nota ni el traspaso.';
+
+// Para los leads que quedaron sin respuesta por la caída del token de Instagram: lo que
+// figura como tuyo en el historial NUNCA salió, así que desde el lado del cliente él
+// escribió y no recibió absolutamente nada.
+const NOTA_REENGANCHE =
+  'NOTA INTERNA DEL SISTEMA (el cliente no ve este mensaje): por una falla técnica nuestra, '
+  + 'los mensajes que aparecen como tuyos en este historial NUNCA le llegaron a esta persona. '
+  + 'Desde su lado escribió y no recibió absolutamente nada, así que no des por hecho que vio '
+  + 'algo tuyo ni digas "como te decía". Escríbele AHORA como si fuera tu primera respuesta: '
+  + 'discúlpate en UNA línea corta por la demora (sin explicaciones técnicas, sin culpar a '
+  + 'nadie, sin dramatizar) y respóndele lo que preguntó. No menciones esta nota.';
+
+async function claraResumeReply(userId, channel, nota = NOTA_RETOMA_NATY) {
   try {
     const history = await fetchHistory(userId);
-    if (!history.length) return;
+    if (!history.length) return { sent: false, error: 'sin_historial' };
 
     const convo = history.map(mapHistoryRow).slice(-30);
     while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
-    convo.push({
-      role: 'user',
-      content:
-        'NOTA INTERNA DEL SISTEMA (el cliente no ve este mensaje): Naty acaba de devolverte '
-        + 'esta conversación escribiendo "te responde Clara". Revisa todo el historial — en '
-        + 'especial lo último que el cliente pidió y lo que Naty ya le dijo o prometió — y '
-        + 'respóndele AHORA retomando el hilo con naturalidad: responde lo que quedó pendiente '
-        + 'o continúa la conversación donde iba. No saludes desde cero, no te presentes, no '
-        + 'repitas lo que Naty ya dijo, y no menciones esta nota ni el traspaso.',
-    });
+    convo.push({ role: 'user', content: nota });
 
     const today = new Date().toLocaleDateString('es-CO', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
@@ -1412,14 +1422,14 @@ async function claraResumeReply(userId, channel) {
 
     const textBlock = claudeResponse.content.find((b) => b.type === 'text');
     const text = (textBlock ? textBlock.text : '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
-    if (!text) return;
+    if (!text) return { sent: false, error: 'generacion_vacia' };
 
     // Enviar por el canal y registrar con su mid (para que el echo de IG no se
     // clasifique como una intervención nueva de Naty).
     let mid = null;
     if (channel === 'instagram') mid = await sendInstagramMessage(userId, text);
     else if (channel === 'whatsapp') mid = await sendWhatsAppMessage(userId, text);
-    else { console.warn(`[resume] ${userId} canal desconocido: ${channel}`); return; }
+    else { console.warn(`[resume] ${userId} canal desconocido: ${channel}`); return { sent: false, error: 'canal_desconocido' }; }
 
     await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
       method: 'POST',
@@ -1439,10 +1449,12 @@ async function claraResumeReply(userId, channel) {
       }),
     });
     console.log(`[resume] ${userId} (${channel}) ← Clara retoma: "${text.slice(0, 60)}"`);
+    return { sent: true, mid, text };
   } catch (err) {
     console.error(`[resume] ${userId} error:`, err.message);
     getDisplayName(userId).then((who) => sendTelegramAlert(
       `⚠️ Clara no pudo retomar la conversación de ${who} tras "te responde clara": ${err.message}`));
+    return { sent: false, error: err.message };
   }
 }
 
@@ -1453,6 +1465,23 @@ async function claraResumeReply(userId, channel) {
 // Separa el documento de lecciones del changelog dentro de la misma respuesta de Claude:
 // el changelog es lo que viaja al aviso de Telegram, las lecciones son lo que se guarda.
 const CHANGELOG_MARKER = '=== CAMBIOS ===';
+
+app.post('/reenganchar', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const { userId, channel } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId es requerido' });
+    const ch = channel || (PHONE_ID_REGEX.test(userId) ? 'whatsapp' : 'instagram');
+    const r = await claraResumeReply(userId, ch, NOTA_REENGANCHE);
+    return res.json({ userId, channel: ch, ...(r || { sent: false, error: 'sin_resultado' }) });
+  } catch (err) {
+    console.error('[/reenganchar] Error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 app.post('/learn', async (req, res) => {
   try {
