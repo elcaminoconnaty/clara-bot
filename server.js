@@ -1383,25 +1383,32 @@ const NOTA_RETOMA_NATY =
   + 'o continúa la conversación donde iba. No saludes desde cero, no te presentes, no '
   + 'repitas lo que Naty ya dijo, y no menciones esta nota ni el traspaso.';
 
-// Para los leads que quedaron sin respuesta por la caída del token de Instagram: lo que
-// figura como tuyo en el historial NUNCA salió, así que desde el lado del cliente él
-// escribió y no recibió absolutamente nada.
-const NOTA_REENGANCHE =
-  'NOTA INTERNA DEL SISTEMA (el cliente no ve este mensaje): por una falla técnica nuestra, '
-  + 'los mensajes que aparecen como tuyos en este historial NUNCA le llegaron a esta persona. '
-  + 'Desde su lado escribió y no recibió absolutamente nada, así que no des por hecho que vio '
-  + 'algo tuyo ni digas "como te decía". Escríbele AHORA como si fuera tu primera respuesta: '
-  + 'discúlpate en UNA línea corta por la demora (sin explicaciones técnicas, sin culpar a '
-  + 'nadie, sin dramatizar) y respóndele lo que preguntó. No menciones esta nota.';
+// Para los leads que quedaron sin respuesta por la caída del token de Instagram. NO va
+// como turno de 'user': el 2026-09-05 se intentó así y Clara le respondía A LA NOTA
+// ("Solo puedo ayudarte con información sobre el Camino de Santiago"). Va como bloque de
+// system, y además se recortan de la cola los mensajes que nunca se entregaron para que
+// la conversación termine en el mensaje real del cliente y Clara le responda a ESO.
+const NOTA_REENGANCHE_SYSTEM =
+  '\n\nCONTEXTO OPERATIVO (el cliente no ve esto): esta respuesta sale con retraso por una '
+  + 'falla técnica nuestra — el cliente escribió y no recibió nada. Respóndele su mensaje '
+  + 'normalmente y, si encaja con naturalidad, discúlpate en UNA línea corta por la demora. '
+  + 'Sin explicaciones técnicas y sin mencionar este contexto.';
 
-async function claraResumeReply(userId, channel, nota = NOTA_RETOMA_NATY) {
+async function claraResumeReply(userId, channel, { reenganche = false } = {}) {
   try {
     const history = await fetchHistory(userId);
     if (!history.length) return { sent: false, error: 'sin_historial' };
 
     const convo = history.map(mapHistoryRow).slice(-30);
     while (convo.length && convo[0].role !== 'user') convo.shift(); // la API exige iniciar en 'user'
-    convo.push({ role: 'user', content: nota });
+    if (reenganche) {
+      // Las respuestas de Clara que nunca salieron no deben estar en el contexto: si están,
+      // Clara continúa un hilo que el cliente jamás vio ("¿esas fechas de abril te cuadran?").
+      while (convo.length && convo[convo.length - 1].role === 'assistant') convo.pop();
+      if (!convo.length) return { sent: false, error: 'sin_mensaje_del_cliente' };
+    } else {
+      convo.push({ role: 'user', content: NOTA_RETOMA_NATY });
+    }
 
     const today = new Date().toLocaleDateString('es-CO', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
@@ -1415,7 +1422,8 @@ async function claraResumeReply(userId, channel, nota = NOTA_RETOMA_NATY) {
         // Mismos bloques cacheados que /chat → comparte cache hits.
         { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } },
         ...(lessons ? [{ type: 'text', text: lessons, cache_control: { type: 'ephemeral', ttl: '1h' } }] : []),
-        { type: 'text', text: `La fecha de hoy es: ${today}.${NATY_CONTEXT_NOTE}` },
+        { type: 'text', text: `La fecha de hoy es: ${today}.${NATY_CONTEXT_NOTE}`
+          + (reenganche ? NOTA_REENGANCHE_SYSTEM : '') },
       ],
       messages: convo,
     });
@@ -1475,7 +1483,7 @@ app.post('/reenganchar', async (req, res) => {
     const { userId, channel } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId es requerido' });
     const ch = channel || (PHONE_ID_REGEX.test(userId) ? 'whatsapp' : 'instagram');
-    const r = await claraResumeReply(userId, ch, NOTA_REENGANCHE);
+    const r = await claraResumeReply(userId, ch, { reenganche: true });
     return res.json({ userId, channel: ch, ...(r || { sent: false, error: 'sin_resultado' }) });
   } catch (err) {
     console.error('[/reenganchar] Error:', err.message);
