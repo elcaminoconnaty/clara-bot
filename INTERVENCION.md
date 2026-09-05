@@ -131,3 +131,51 @@ respondió de inmediato con contexto), 12 falsas sin pendiente se devolvieron a
   anterior desde el historial de n8n. Ojo: esa versión usa el token hardcodeado.
 - server.js: revertir commit `feat: intervención de Naty por conversación`.
 - Panel: script original en `n8n-backups/panel-clara-original.js`.
+
+## Caída muda de Instagram y renovación del token (2026-09-05)
+
+El token de IG venció el **29-ago-2026 18:39 PDT** y Clara quedó **7 días sin entregar
+en Instagram** sin que nadie lo notara. El nodo `Enviar Mensaje Instagram` de n8n envía
+con `options.response.neverError: true`: el `OAuthException 190` de Meta entraba como
+respuesta normal, la ejecución quedaba en **success** y el flujo seguía derecho a guardar
+en Supabase la conversación y la respuesta de Clara. El panel, la tabla `messages` y las
+ejecuciones mostraban todo sano. WhatsApp no se afectó (token distinto y permanente).
+
+**Huellas para detectarlo rápido:** `external_message_id IS NULL` en las respuestas de
+Clara (20 NULL vs. 393 con mid); conversaciones de IG de un solo turno (nadie contesta lo
+que no le llegó); `display_name` en blanco para leads nuevos (`ensureDisplayName()` usa el
+mismo token). En n8n: `get_execution` con `includeData:true` muestra el error de Meta
+dentro del nodo aunque la ejecución esté verde.
+
+**Vigilancia (commit `5026c97`):** `checkIgToken()` valida el token al arrancar y cada
+hora, y avisa por Alberto al caer (recordatorio diario mientras siga caído) y al
+restablecerse. Con `IG_TOKEN_EXPIRES_AT` (YYYY-MM-DD) avisa 10 días antes del vencimiento.
+
+**El token vive DUPLICADO — hay que actualizar los dos:**
+1. Railway, servicio `clara-bot`: variables `IG_ACCESS_TOKEN` e `IG_TOKEN_EXPIRES_AT`.
+2. n8n, credencial `Instagram Clara Token` (`lqnTvMZ8KkYw27NE`, httpHeaderAuth): campo
+   `Authorization`, valor **`Bearer <token>`** (con el prefijo). Es la que entrega las
+   respuestas normales. La API pública de n8n responde 401 con la key guardada, así que
+   este paso hoy es manual en la UI.
+
+**Cómo se genera:** developers.facebook.com/apps → app "CLara Bot N8N" → Instagram →
+Configuración de la API con inicio de sesión de Instagram → "Generar token de acceso" →
+Generar token. Dura **60 días** y, una vez vencido, **ya no se puede refrescar**: toca
+generarlo de nuevo a mano.
+
+**Por qué no hay token eterno hoy:** el token IGAAN pertenece a *Instagram API con inicio
+de sesión de Instagram*, que solo emite tokens de 60 días (por eso el ERROR 1 de
+`ERRORES_CONOCIDOS.md` no era un error de configuración: ese token no funciona contra
+`graph.facebook.com` porque es de otro tipo de integración). Hay dos caminos para que no
+vuelva a vencer: (a) migrar a *Instagram API con inicio de sesión de Facebook* y usar un
+token de usuario de sistema como el de WhatsApp — implica App Review y arriesga el mapeo
+de IGSIDs de las 447 conversaciones; o (b) **recomendado**: que n8n entregue a través de
+clara-bot, dejando el token en un solo lugar, y que clara-bot lo refresque solo cada 30
+días con `/refresh_access_token` (funciona mientras el token esté vivo).
+
+**Reenganche de leads caídos:** `POST /reenganchar {userId, channel}` con
+`x-intervention-secret`. Reusa `claraResumeReply()` con `NOTA_REENGANCHE` (le dice a Clara
+que sus mensajes nunca se entregaron y que escriba como si fuera su primera respuesta, con
+una disculpa corta por la demora) y devuelve `{sent, mid}` o `{sent:false, error}`.
+**Ojo: Instagram no permite DM fuera de la ventana de 24h** (ver `REMARKETING.md`), así que
+solo se puede reenganchar a quien haya escrito en las últimas 24 horas.
