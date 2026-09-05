@@ -2023,6 +2023,7 @@ async function checkIgToken() {
 
   if (error) {
     const primerAviso = !igTokenCaido;
+    console.error('[ig-token] CAÍDO — Meta rechaza el token:', error);
     igTokenCaido = true;
     if (primerAviso || igTokenAvisoDia !== hoy) {
       igTokenAvisoDia = hoy;
@@ -2039,6 +2040,7 @@ async function checkIgToken() {
   }
 
   if (igTokenCaido) {
+    console.log('[ig-token] Restablecido.');
     await sendTelegramAlert('🟢 Instagram restablecido — Clara ya está entregando en Instagram.');
   }
   igTokenCaido = false;
