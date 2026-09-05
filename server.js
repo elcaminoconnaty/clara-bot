@@ -1975,6 +1975,79 @@ setInterval(async () => {
   }
 }, 10 * 60 * 1000); // revisa cada 10 minutos
 
+// ─── Vigilancia del token de Instagram ───────────────────────────────────────
+// El token de IG venció el 29-ago-2026 y Clara quedó muda en Instagram 7 días sin
+// que nadie se enterara: el nodo de n8n que entrega el mensaje manda con
+// neverError:true, así que el error 190 de Meta pasaba de largo, la ejecución
+// salía en verde y la respuesta quedaba guardada en Supabase como si hubiera
+// llegado. Este chequeo convierte esa caída muda en una alerta de Alberto.
+
+const IG_TOKEN_AVISO_DIAS = 10; // avisar con esta anticipación al vencimiento
+let igTokenCaido = false;       // para avisar en el cambio de estado
+let igTokenAvisoDia = null;     // y recordar una vez al día mientras siga caído
+let igVenceAvisoDia = null;
+
+async function avisarSiElTokenVencePronto(hoy) {
+  const vence = process.env.IG_TOKEN_EXPIRES_AT; // YYYY-MM-DD, opcional
+  if (!vence || igVenceAvisoDia === hoy) return;
+  const dias = Math.floor((new Date(`${vence}T12:00:00Z`) - Date.now()) / 86400000);
+  if (dias > IG_TOKEN_AVISO_DIAS) return;
+  igVenceAvisoDia = hoy;
+  await sendTelegramAlert(
+    `🟡 El token de Instagram vence en ${dias} día(s) (${vence}).\n\n` +
+    'Hay que generarlo de nuevo en Meta y actualizarlo en Railway (IG_ACCESS_TOKEN, ' +
+    'IG_TOKEN_EXPIRES_AT) y en la credencial de n8n. Si vence, Clara deja de ' +
+    'entregar en Instagram sin dar señales.'
+  );
+}
+
+async function checkIgToken() {
+  const token = process.env.IG_ACCESS_TOKEN;
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  if (!token) {
+    console.warn('[ig-token] Falta IG_ACCESS_TOKEN en el servidor.');
+    return;
+  }
+
+  let error = null;
+  try {
+    const r = await fetch('https://graph.instagram.com/v21.0/me?fields=id,username', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await r.json().catch(() => ({}));
+    if (data.error) error = data.error.message || JSON.stringify(data.error);
+    else console.log(`[ig-token] OK — cuenta @${data.username || data.id}`);
+  } catch (err) {
+    error = err.message; // una caída de red no distingue de un token malo: se avisa igual
+  }
+
+  if (error) {
+    const primerAviso = !igTokenCaido;
+    igTokenCaido = true;
+    if (primerAviso || igTokenAvisoDia !== hoy) {
+      igTokenAvisoDia = hoy;
+      await sendTelegramAlert(
+        '🔴 INSTAGRAM CAÍDO — Clara NO está entregando sus respuestas\n\n' +
+        `Meta rechaza el token: ${error}\n\n` +
+        'Clara sigue generando y guardando las respuestas (se ven en el panel), pero ' +
+        'NO le llegan al cliente. WhatsApp no está afectado.\n\n' +
+        'Arreglo: generar un token nuevo en Meta (app de Instagram → configuración de ' +
+        'la API) y actualizarlo en Railway (IG_ACCESS_TOKEN) Y en la credencial de n8n.'
+      );
+    }
+    return;
+  }
+
+  if (igTokenCaido) {
+    await sendTelegramAlert('🟢 Instagram restablecido — Clara ya está entregando en Instagram.');
+  }
+  igTokenCaido = false;
+  await avisarSiElTokenVencePronto(hoy);
+}
+
+setTimeout(() => { checkIgToken().catch((err) => console.warn('[ig-token] Error:', err.message)); }, 30 * 1000);
+setInterval(() => { checkIgToken().catch((err) => console.warn('[ig-token] Error:', err.message)); }, 60 * 60 * 1000); // cada hora
+
 // ─── Iniciar servidor ─────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
