@@ -1982,6 +1982,31 @@ async function buildAndSendRemarketingReport() {
   return c;
 }
 
+// Candidatos de remarketing por REST (RPC get_remarketing_candidates). El cron de n8n
+// los pedía por Postgres directo con una credencial que dejó de autenticar el
+// 2026-09-07 (remarketing muerto 3 días sin aviso). Ahora n8n llama acá y luego
+// POST /remarketing por cada fila; la única llave vive en el cerebro.
+app.post('/remarketing/candidates', async (req, res) => {
+  try {
+    const expected = process.env.INTERVENTION_SECRET;
+    if (expected && req.headers['x-intervention-secret'] !== expected) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    const limit = Number(req.body && req.body.limit) || 5;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_remarketing_candidates`, {
+      method: 'POST', headers: SB_HEADERS, body: JSON.stringify({ p_limit: limit }),
+    });
+    if (!r.ok) throw new Error(`Supabase rpc ${r.status}: ${await r.text()}`);
+    const rows = await r.json();
+    console.log(`[/remarketing/candidates] ${rows.length} candidato(s)`);
+    return res.json(rows);
+  } catch (err) {
+    console.error('[/remarketing/candidates] Error:', err.message);
+    sendTelegramAlert(`⚠️ Remarketing: no pude obtener candidatos (${err.message}).`);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/remarketing/report', async (_req, res) => {
   try {
     const c = await buildAndSendRemarketingReport();
