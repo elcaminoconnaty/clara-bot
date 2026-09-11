@@ -2059,6 +2059,49 @@ setInterval(async () => {
   }
 }, 14 * 60 * 1000); // cada 14 minutos
 
+// ─── Cron de remarketing en el cerebro (2026-09-11) ──────────────────────────
+// Respaldo del workflow de n8n "Clara - Remarketing 24h", muerto desde el 2026-09-07
+// porque su nodo Postgres dejó de autenticar (y nadie se enteró: 3 días sin
+// reactivaciones). Misma franja que n8n (13-22 UTC = 8am-5pm Bogotá), al minuto 1
+// para no pisarse con él si algún día vuelve. El RPC solo devuelve conversaciones con
+// remarketing_stage='none', así que aunque corran los dos no hay doble envío.
+// Se apaga con REMARKETING_CRON=off.
+async function runRemarketingCron() {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-intervention-secret': process.env.INTERVENTION_SECRET || '',
+  };
+  const r = await fetch(`${SELF_URL}/remarketing/candidates`, {
+    method: 'POST', headers, body: JSON.stringify({ limit: 5 }),
+  });
+  if (!r.ok) throw new Error(`candidates ${r.status}: ${await r.text()}`);
+  const rows = await r.json();
+  for (const row of rows) {
+    const s = await fetch(`${SELF_URL}/remarketing`, {
+      method: 'POST', headers, body: JSON.stringify({ userId: row.user_id, channel: row.channel }),
+    });
+    const out = await s.json().catch(() => ({}));
+    console.log(`[remarketing-cron] ${row.user_id} (${row.channel}) → ${out.action || s.status}${out.reason ? ' ' + out.reason : ''}`);
+  }
+  return rows.length;
+}
+let lastRemarketingRunKey = '';
+setInterval(() => {
+  if ((process.env.REMARKETING_CRON || 'on') === 'off') return;
+  const now = new Date();
+  const h = now.getUTCHours();
+  if (h < 13 || h > 22 || now.getUTCMinutes() !== 1) return;
+  const key = now.toISOString().slice(0, 13); // una corrida por hora
+  if (key === lastRemarketingRunKey) return;
+  lastRemarketingRunKey = key;
+  runRemarketingCron()
+    .then((n) => console.log(`[remarketing-cron] corrida ${key}Z: ${n} candidato(s)`))
+    .catch((err) => {
+      console.error('[remarketing-cron] Error:', err.message);
+      sendTelegramAlert(`⚠️ Cron de remarketing (cerebro) falló: ${err.message}`);
+    });
+}, 30 * 1000);
+
 // ─── Reporte diario de remarketing (6pm hora Colombia) ───────────────────────
 let lastReportDay = null;
 setInterval(async () => {

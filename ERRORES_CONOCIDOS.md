@@ -96,6 +96,35 @@ La key se crea en Settings → n8n API → Create an API Key.
 
 ---
 
+## ERROR 5 — Pausa falsa masiva: la credencial Postgres de n8n dejó de autenticar (2026-09-07 → 2026-09-11)
+
+**Síntoma:** Clara respondía el PRIMER mensaje de cada lead nuevo de IG y después se quedaba muda. En el panel la conversación aparecía como "Naty intervino" (status `naty`, pausa 48h) con una fila `sent_by='naty'` idéntica a la respuesta de Clara. Alberto mandó 17 avisos de "🙋 Naty tomó la conversación" en 3 días que nadie cuestionó. Remarketing muerto en el mismo período (103 ejecuciones en error, una por hora).
+
+**Causa raíz:** la credencial `Supabase Postgres BayMax` (`77LyzCQh9TZFg73d`) de n8n empezó a fallar con `password authentication failed for user "postgres"` el 2026-09-07 entre 21:00 y 22:00 UTC (última corrida buena de remarketing: 21:00; primera pausa falsa: 23:50). La usan DOS nodos:
+- `Buscar Echo Conocido` (workflow IG) — tiene `onError: continueRegularOutput`, así que el error pasa como un item sin `known` → `Clasificar Echo` lo lee como `known=false` → **cada eco de la propia Clara se clasifica como intervención manual de Naty** → `/intervention` pausa 48h + inserta la fila fantasma.
+- `Buscar Candidatos` (workflow Remarketing) — sin fallback: la ejecución muere y no sale ningún mensaje de reenganche.
+
+**Cómo se detecta rápido:**
+```sql
+-- filas "de Naty" que son copia exacta de una respuesta de Clara (±2 min)
+SELECT m.conversation_id, m.created_at FROM messages m
+WHERE m.sent_by='naty' AND EXISTS (SELECT 1 FROM messages m2 WHERE m2.conversation_id=m.conversation_id
+  AND m2.sent_by='clara' AND m2.content=m.content
+  AND m2.created_at BETWEEN m.created_at - interval '2 minutes' AND m.created_at + interval '2 minutes');
+```
+Y en n8n: `get_execution` del workflow IG con `nodeNames: ['Buscar Echo Conocido']` muestra el error aunque la ejecución esté en verde.
+
+**Fix (commits `2ac0884`, `bf0cd76` y el cron):**
+1. `server.js` → `isOwnOutgoing()`: `/intervention` con `source='naty'` consulta por REST si ese mid o ese texto ya está registrado como saliente en los últimos 15 min; si sí, responde `{ignored:'echo_propio'}` y NO pausa. El cerebro deja de confiar en la clasificación de n8n.
+2. `POST /remarketing/candidates` (RPC `get_remarketing_candidates` por REST, protegido con el secret) + cron interno en el cerebro (13-22 UTC, minuto 1). El workflow de n8n sigue publicado y sigue fallando cada hora hasta que se arregle la credencial o se reemplace su nodo Postgres por un HTTP Request a este endpoint (el clasificador de auto-mode bloqueó ese `update_workflow`; el código SDK validado está en el log de la sesión del 2026-09-11).
+3. Reparación de datos: 17 filas fantasma `sent_by='naty'` borradas; 14 conversaciones devueltas a `status='clara'`; Yuri Leon (`1403197735111790`, perdida por un timeout de 30s en `Llamar a Clara Bot` el 7-sep) registrada a mano.
+
+**Pendiente:** actualizar la contraseña de la credencial Postgres en n8n (Settings → Credentials → Supabase Postgres BayMax) o quitarle el nodo Postgres a los dos workflows. Mientras `Buscar Echo Conocido` siga fallando, cada respuesta de Clara en IG pasa por `/intervention` y se descarta ahí (2 s extra por mensaje, sin efecto visible).
+
+**Estado:** ✅ Cerebro blindado y desplegado (2026-09-11). ⚠️ Credencial de n8n sigue rota.
+
+---
+
 ## DATOS IMPORTANTES DEL SISTEMA
 
 | Campo | Valor |
