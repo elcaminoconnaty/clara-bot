@@ -264,6 +264,28 @@ async function sendTelegramAlert(text, extra = {}) {
   }
 }
 
+// ─── Guarda contra ecos propios (2026-09-11) ─────────────────────────────────
+// n8n clasifica el echo de IG consultando Supabase por Postgres directo. Cuando esa
+// credencial falla (desde el 2026-09-07: "password authentication failed"), el nodo
+// sigue con known=false y CADA respuesta de Clara llega acá como "intervención de
+// Naty" → pausa falsa de 48h y el lead se queda sin respuesta (17 leads en 3 días).
+// El cerebro verifica por su cuenta, por REST (la misma llave que usa para todo lo
+// demás), si el mensaje ya está registrado como saliente (Clara, remarketing,
+// reenganche o panel) antes de pausar. Match por mid o por texto exacto reciente.
+async function isOwnOutgoing(userId, mid, message) {
+  const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const url = `${SUPABASE_URL}/rest/v1/messages`
+    + `?conversation_id=eq.${encodeURIComponent(userId)}`
+    + `&role=eq.assistant&created_at=gt.${encodeURIComponent(since)}`
+    + `&select=content,external_message_id&order=created_at.desc&limit=20`;
+  const r = await fetch(url, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase isOwnOutgoing ${r.status}: ${await r.text()}`);
+  const rows = await r.json();
+  const text = (message || '').trim();
+  return rows.some((m) => (mid && m.external_message_id === mid)
+    || (text && (m.content || '').trim() === text));
+}
+
 // Durante la pausa n8n no persiste nada (su rama de éxito no corre), así que si no
 // guardamos acá el mensaje del cliente, Naty no lo vería en el panel.
 async function saveInboundWhilePaused(userId, text) {
@@ -1223,6 +1245,23 @@ app.post('/intervention', async (req, res) => {
     if (!userId) return res.status(400).json({ error: 'userId requerido' });
 
     const isResume = source === 'clara_resume';
+
+    // Si es un mensaje que nosotros mismos mandamos (ya registrado), NO es Naty:
+    // no se pausa ni se duplica la fila. Ver isOwnOutgoing().
+    if (!isResume) {
+      try {
+        if (await isOwnOutgoing(userId, externalMessageId, message)) {
+          console.log(`[/intervention] ${userId} echo propio ya registrado — NO se pausa (n8n lo clasificó mal)`);
+          return res.json({ ok: true, paused: false, ignored: 'echo_propio' });
+        }
+      } catch (err) {
+        console.warn(`[/intervention] ${userId} no pude verificar el echo (${err.message}) — se pausa por precaución`);
+        getDisplayName(userId).then((who) => sendTelegramAlert(
+          `⚠️ No pude verificar si el mensaje en la conversación de ${who} era de Clara (${err.message}). `
+          + 'Se pausó por precaución: revisa si de verdad intervino Naty.'));
+      }
+    }
+
     await setPaused(userId, !isResume);
 
     if (message && typeof message === 'string') {
