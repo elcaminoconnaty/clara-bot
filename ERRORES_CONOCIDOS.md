@@ -104,6 +104,9 @@ La key se crea en Settings → n8n API → Create an API Key.
 - `Buscar Echo Conocido` (workflow IG) — tiene `onError: continueRegularOutput`, así que el error pasa como un item sin `known` → `Clasificar Echo` lo lee como `known=false` → **cada eco de la propia Clara se clasifica como intervención manual de Naty** → `/intervention` pausa 48h + inserta la fila fantasma.
 - `Buscar Candidatos` (workflow Remarketing) — sin fallback: la ejecución muere y no sale ningún mensaje de reenganche.
 
+**¿Y WhatsApp? La pausa falsa NO lo toca; el remarketing muerto SÍ, y más fuerte.** El workflow `Clara - WhatsApp` (`XuOuodKtWoW03RBL`) **no tiene ningún nodo Postgres** — todo Supabase va por HTTP Request con la llave REST — y **no tiene rama de ecos** (la Cloud API de WhatsApp no manda echoes; Naty solo interviene por el panel → `/send`, que registra el `mid` él mismo). Verificado el 2026-09-11: 0 filas fantasma `sent_by='naty'` en WA, 0 conversaciones pausadas, 0 pausas nuevas desde el 7-sep, 37 respuestas de Clara en 3 días y **ninguna conversación de WA con el último mensaje del cliente sin responder en 21 días**.
+Pero el RPC de remarketing sirve a los dos canales, así que el cron muerto dejó sin mensaje de 24h a **15 leads de WhatsApp** (vs. 2 de Instagram) entre el 7 y el 10 de sep. **Esos 15 ya NO se recuperan con Clara**: pasaron entre 47 y 99 horas, o sea están fuera de la ventana de servicio de 24h de Meta y un mensaje libre sería rechazado (haría falta una plantilla aprobada). Es el daño irreversible del incidente, y es de WhatsApp, no de Instagram.
+
 **Cómo se detecta rápido:**
 ```sql
 -- filas "de Naty" que son copia exacta de una respuesta de Clara (±2 min)
