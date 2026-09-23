@@ -1035,28 +1035,38 @@ app.post('/chat', async (req, res) => {
 
     let messageText = message ? String(message).trim() : '';
 
-    if (!messageText && !audioBase64) {
-      const noAudioResponse = {
+    // Notas de voz. Mientras TRANSCRIBIR_AUDIOS no esté en 'on' (el saldo de OpenAI se
+    // agotó el 2026-09-23 y Whisper fallaba con 422, dejando al cliente sin respuesta),
+    // Clara responde con honestidad que por ahora no puede escuchar audios. Si Naty tiene
+    // el chat, se calla: no le pisa la conversación.
+    const avisoSinAudio = async (motivo) => {
+      if (await isPaused(userId)) {
+        console.log(`[${userId}] Nota de voz con el chat pausado (Naty) — sin aviso.`);
+        return res.json(skipResponse('paused'));
+      }
+      console.log(`[${userId}] Nota de voz (${motivo}) — respondiendo con aviso.`);
+      return res.json({
         version: 'v2',
         content: {
           type: 'instagram',
-          messages: [{ type: 'text', text: '¡Hola! 🎙️ Por ahora no puedo escuchar notas de voz, pero estamos trabajando en eso. ¿Puedes escribirme tu mensaje? Con gusto te respondo 😊' }]
-        }
-      };
-      console.log(`[${userId}] Nota de voz detectada — respondiendo con mensaje de aviso.`);
-      return res.json(noAudioResponse);
-    }
+          messages: [{ type: 'text', text: '¡Hola! 🎙️ En este momento no puedo escuchar notas de voz. ¿Me lo escribes por acá? Con gusto te respondo 😊' }],
+        },
+      });
+    };
+
+    if (!messageText && !audioBase64) return avisoSinAudio('sin audio adjunto');
 
     let wasTranscribed = false;
 
     if (audioBase64) {
+      if (process.env.TRANSCRIBIR_AUDIOS !== 'on') return avisoSinAudio('transcripción apagada');
       try {
         messageText = await transcribeAudio(audioBase64, audioMimeType);
         wasTranscribed = true;
         console.log(`[${userId}] Audio transcrito: "${messageText}"`);
       } catch (err) {
         console.error(`[${userId}] Error al transcribir audio:`, err.message);
-        return res.status(422).json({ error: 'No se pudo transcribir el audio. Intenta enviar un mensaje de texto.' });
+        return avisoSinAudio('falló la transcripción');
       }
     }
 
