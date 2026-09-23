@@ -1027,7 +1027,7 @@ const ADMIN_USERS = new Set(['573004910929']); // Nico
 app.post('/chat', async (req, res) => {
   console.log('REQUEST RECIBIDO en /chat');
   try {
-    const { userId, message, audioBase64, audioMimeType } = req.body;
+    const { userId, message, audioBase64, audioMimeType, messageId } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'El campo "userId" es requerido.' });
@@ -1194,6 +1194,10 @@ app.post('/chat', async (req, res) => {
       : '';
 
     const lessons = await getNatyLessons(); // en memoria salvo refresh cada 6h
+
+    // Ya se sabe que Clara SÍ va a responder (pasó pausa, duplicados, emojis y opt-out):
+    // es el momento de mostrar "escribiendo…".
+    mostrarEscribiendo(userId, messageId);
 
     console.log(`[${userId}] Llamando a Claude API...`);
     const claudeResponse = await anthropic.messages.create({
@@ -1390,6 +1394,45 @@ async function sendInstagramMessage(userId, text) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data.error) throw new Error(`Instagram: ${JSON.stringify(data.error || data)}`);
   return data.message_id || null;
+}
+
+// ─── "Escribiendo…" (2026-09-23) ─────────────────────────────────────────────
+// Mientras Claude arma la respuesta, el cliente ve "escribiendo…" como con una persona.
+//  - Instagram: sender_action typing_on (solo necesita el IGSID).
+//  - WhatsApp: marcar como leído + typing_indicator; necesita el id del mensaje entrante
+//    (wamid), que n8n manda como `messageId`. Sin él no se muestra nada: nada cambia.
+// El indicador se apaga solo al llegar la respuesta (WhatsApp lo quita a los ~25 s).
+// NUNCA puede frenar ni tumbar una respuesta: sin await, con timeout corto y todo error
+// se registra y se ignora. Interruptor de emergencia: ESCRIBIENDO=off en Railway.
+function mostrarEscribiendo(userId, messageId) {
+  if (process.env.ESCRIBIENDO === 'off') return;
+  const esWhatsApp = PHONE_ID_REGEX.test(userId);
+  let url;
+  let body;
+  let token;
+  if (esWhatsApp) {
+    token = process.env.WA_ACCESS_TOKEN;
+    const phoneId = process.env.WA_PHONE_NUMBER_ID;
+    if (!token || !phoneId || !messageId || !String(messageId).startsWith('wamid.')) return;
+    url = `https://graph.facebook.com/v23.0/${phoneId}/messages`;
+    body = { messaging_product: 'whatsapp', status: 'read', message_id: messageId, typing_indicator: { type: 'text' } };
+  } else {
+    token = process.env.IG_ACCESS_TOKEN;
+    if (!token) return;
+    url = 'https://graph.instagram.com/v21.0/me/messages';
+    body = { recipient: { id: userId }, sender_action: 'typing_on' };
+  }
+  fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(5000),
+  })
+    .then(async (r) => {
+      if (!r.ok) console.warn(`[${userId}] escribiendo… no se mostró (${esWhatsApp ? 'WA' : 'IG'} ${r.status}): ${(await r.text()).slice(0, 200)}`);
+      else console.log(`[${userId}] escribiendo… mostrado (${esWhatsApp ? 'WA' : 'IG'})`);
+    })
+    .catch((err) => console.warn(`[${userId}] escribiendo… error:`, err.message));
 }
 
 async function sendWhatsAppMessage(userId, text) {
