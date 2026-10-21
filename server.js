@@ -29,6 +29,36 @@ if (!process.env.SUPABASE_SERVICE_KEY) {
 // ─── Clientes de API ─────────────────────────────────────────────────────────
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Modelo de las respuestas a clientes (/chat, retoma y remarketing, que comparten el
+// caché del prompt). Sonnet 5.5 cobra un tercio menos por token que 4.6, aunque cuenta
+// ~30 % más tokens por el mismo texto: medido sobre jun-sep 2026 sale ~USD 28/mes contra
+// ~32. Si 5.5 rechaza la petición o no devuelve texto, se repite con 4.6 para que nadie
+// se quede sin respuesta. Una petición rechazada no se cobra; el respaldo deja la línea
+// "[modelo-respaldo]" en los logs.
+const CLARA_MODEL = 'claude-sonnet-5-5';
+const CLARA_MODEL_RESPALDO = 'claude-sonnet-4-6';
+
+async function crearRespuestaClara(params, etiqueta) {
+  try {
+    const r = await anthropic.messages.create({
+      ...params,
+      model: CLARA_MODEL,
+      // Sin razonamiento extendido: Clara no usa herramientas y así se paga solo la respuesta.
+      // between_tools solo vale en 5.5, por eso el respaldo no lo lleva.
+      thinking: { type: 'between_tools' },
+      output_config: { effort: 'high' },
+    });
+    const tieneTexto = r.content.some((b) => b.type === 'text' && b.text.trim());
+    if (r.stop_reason !== 'refusal' && tieneTexto) return r;
+    console.warn(`[${etiqueta}] [modelo-respaldo] ${CLARA_MODEL} no dio texto (stop_reason: ${r.stop_reason}); repito con ${CLARA_MODEL_RESPALDO}`);
+  } catch (err) {
+    // Sin saldo falla igual con cualquier modelo: que lo maneje el llamador como siempre.
+    if (/credit balance/i.test(err && err.message || '')) throw err;
+    console.warn(`[${etiqueta}] [modelo-respaldo] ${CLARA_MODEL} falló (${err && err.status || 'sin status'}): ${String(err && err.message || err).slice(0, 300)}; repito con ${CLARA_MODEL_RESPALDO}`);
+  }
+  return anthropic.messages.create({ ...params, model: CLARA_MODEL_RESPALDO });
+}
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ─── Express ─────────────────────────────────────────────────────────────────
@@ -1200,8 +1230,7 @@ app.post('/chat', async (req, res) => {
     mostrarEscribiendo(userId, messageId);
 
     console.log(`[${userId}] Llamando a Claude API...`);
-    const claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const claudeResponse = await crearRespuestaClara({
       max_tokens: 1024,
       system: [
         {
@@ -1222,8 +1251,8 @@ app.post('/chat', async (req, res) => {
         }
       ],
       messages: apiMessages,
-    });
-    console.log(`[${userId}] Respuesta de Claude recibida. stop_reason: ${claudeResponse.stop_reason}, content blocks: ${claudeResponse.content.length}`);
+    }, `${userId}`);
+    console.log(`[${userId}] Respuesta de Claude recibida (${claudeResponse.model}). stop_reason: ${claudeResponse.stop_reason}, content blocks: ${claudeResponse.content.length}`);
 
     const textBlock = claudeResponse.content.find(b => b.type === 'text');
     const claudeUsage = claudeResponse.usage;
@@ -1553,8 +1582,7 @@ async function claraResumeReply(userId, channel, { reenganche = false } = {}) {
     });
     const lessons = await getNatyLessons();
 
-    const claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const claudeResponse = await crearRespuestaClara({
       max_tokens: 1024,
       system: [
         // Mismos bloques cacheados que /chat → comparte cache hits.
@@ -1564,7 +1592,7 @@ async function claraResumeReply(userId, channel, { reenganche = false } = {}) {
           + (reenganche ? NOTA_REENGANCHE_SYSTEM : '') },
       ],
       messages: convo,
-    });
+    }, `retoma ${userId}`);
 
     const textBlock = claudeResponse.content.find((b) => b.type === 'text');
     const text = (textBlock ? textBlock.text : '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
@@ -1974,8 +2002,7 @@ app.post('/remarketing', async (req, res) => {
 
     const lessons = await getNatyLessons();
 
-    const claudeResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const claudeResponse = await crearRespuestaClara({
       max_tokens: 400,
       system: [
         {
@@ -1991,7 +2018,7 @@ app.post('/remarketing', async (req, res) => {
         },
       ],
       messages: convo,
-    });
+    }, `remarketing ${userId}`);
 
     const textBlock = claudeResponse.content.find(b => b.type === 'text');
     const raw = (textBlock ? textBlock.text : '').trim();
