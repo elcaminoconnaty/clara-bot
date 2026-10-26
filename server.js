@@ -2320,10 +2320,18 @@ async function copiarTokenAN8n(token) {
   const r = await fetch(`${N8N_URL}/api/v1/credentials/${N8N_IG_CREDENCIAL}`, {
     method: 'PATCH',
     headers: { 'X-N8N-API-KEY': key, 'Content-Type': 'application/json' },
-    // useCustomAuth es el aviso "notice" de la credencial; la API de n8n lo exige igual.
+    // La API valida data contra el esquema completo de la credencial: exige el aviso
+    // useCustomAuth y el filtro de dominios que n8n agrega a toda credencial
+    // ("all" es el valor por defecto que tenía).
     body: JSON.stringify({
       type: 'httpHeaderAuth',
-      data: { name: 'Authorization', value: `Bearer ${token}`, useCustomAuth: '' },
+      data: {
+        name: 'Authorization',
+        value: `Bearer ${token}`,
+        useCustomAuth: '',
+        allowedHttpRequestDomains: 'all',
+        allowedDomains: '',
+      },
     }),
   });
   if (!r.ok) throw new Error(`n8n respondió ${r.status}: ${(await r.text()).slice(0, 600)}`);
