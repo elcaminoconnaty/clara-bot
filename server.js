@@ -2320,9 +2320,13 @@ async function copiarTokenAN8n(token) {
   const r = await fetch(`${N8N_URL}/api/v1/credentials/${N8N_IG_CREDENCIAL}`, {
     method: 'PATCH',
     headers: { 'X-N8N-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'httpHeaderAuth', data: { name: 'Authorization', value: `Bearer ${token}` } }),
+    // useCustomAuth es el aviso "notice" de la credencial; la API de n8n lo exige igual.
+    body: JSON.stringify({
+      type: 'httpHeaderAuth',
+      data: { name: 'Authorization', value: `Bearer ${token}`, useCustomAuth: '' },
+    }),
   });
-  if (!r.ok) throw new Error(`n8n respondió ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) throw new Error(`n8n respondió ${r.status}: ${(await r.text()).slice(0, 600)}`);
 }
 
 async function refrescarIgTokenSiToca(hoy) {
