@@ -188,7 +188,7 @@ const PHONE_ID_REGEX = /^\d{10,13}$/; // mismo criterio que el panel: teléfono 
 const displayNameChecked = new Set();
 
 async function fetchIgProfile(userId) {
-  const token = process.env.IG_ACCESS_TOKEN;
+  const token = igToken();
   if (!token) return null;
   const r = await fetch(`https://graph.instagram.com/v21.0/${userId}?fields=username,name`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -1413,7 +1413,7 @@ function setCors(res) {
 app.options('/send', (_req, res) => { setCors(res); res.sendStatus(204); });
 
 async function sendInstagramMessage(userId, text) {
-  const token = process.env.IG_ACCESS_TOKEN;
+  const token = igToken();
   if (!token) throw new Error('Falta IG_ACCESS_TOKEN en el servidor');
   const r = await fetch('https://graph.instagram.com/v21.0/me/messages', {
     method: 'POST',
@@ -1446,7 +1446,7 @@ function mostrarEscribiendo(userId, messageId) {
     url = `https://graph.facebook.com/v23.0/${phoneId}/messages`;
     body = { messaging_product: 'whatsapp', status: 'read', message_id: messageId, typing_indicator: { type: 'text' } };
   } else {
-    token = process.env.IG_ACCESS_TOKEN;
+    token = igToken();
     if (!token) return;
     url = 'https://graph.instagram.com/v21.0/me/messages';
     body = { recipient: { id: userId }, sender_action: 'typing_on' };
@@ -2268,22 +2268,122 @@ let igTokenCaido = false;       // para avisar en el cambio de estado
 let igTokenAvisoDia = null;     // y recordar una vez al día mientras siga caído
 let igVenceAvisoDia = null;
 
+// ─── Refresco automático del token (2026-10-26) ──────────────────────────────
+// El token vive en la tabla clara_ig_token. Cada 7 días este servidor lo renueva
+// con refresh_access_token (otros 60 días) y copia el nuevo a la credencial de n8n
+// "Instagram Clara Token" por la API de n8n (N8N_API_KEY), porque las respuestas
+// normales salen desde n8n. IG_ACCESS_TOKEN de Railway solo siembra la fila la
+// primera vez y queda de respaldo si Supabase no responde.
+
+const IG_CUENTA = 'elcaminoconnaty';
+const IG_REFRESCO_DIAS = 7;
+const N8N_URL = process.env.N8N_URL || 'https://primary-production-d866.up.railway.app';
+const N8N_IG_CREDENCIAL = 'lqnTvMZ8KkYw27NE'; // "Instagram Clara Token"
+let igTokenFila = null;         // { access_token, expires_at, refreshed_at, n8n_synced_at }
+let igRefrescoAvisoDia = null;
+
+function igToken() {
+  return (igTokenFila && igTokenFila.access_token) || process.env.IG_ACCESS_TOKEN || null;
+}
+
+async function guardarIgToken(campos) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/clara_ig_token`, {
+    method: 'POST',
+    headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({ ...igTokenFila, ...campos, account: IG_CUENTA }),
+  });
+  if (!r.ok) throw new Error(`Supabase clara_ig_token ${r.status}: ${await r.text()}`);
+  igTokenFila = (await r.json())[0];
+}
+
+async function cargarIgToken() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/clara_ig_token?account=eq.${IG_CUENTA}&select=*`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase clara_ig_token ${r.status}: ${await r.text()}`);
+  const rows = await r.json();
+  if (rows[0]) { igTokenFila = rows[0]; return; }
+  // Primera vez: sembrar con el token de Railway, que ya es el mismo de n8n.
+  if (!process.env.IG_ACCESS_TOKEN) return;
+  const ahora = new Date().toISOString();
+  const vence = process.env.IG_TOKEN_EXPIRES_AT;
+  await guardarIgToken({
+    access_token: process.env.IG_ACCESS_TOKEN,
+    expires_at: vence ? `${vence}T12:00:00Z` : null,
+    refreshed_at: ahora,
+    n8n_synced_at: ahora,
+  });
+  console.log('[ig-token] Fila sembrada en Supabase desde IG_ACCESS_TOKEN.');
+}
+
+async function copiarTokenAN8n(token) {
+  const key = process.env.N8N_API_KEY;
+  if (!key) throw new Error('Falta N8N_API_KEY en Railway: no pude copiar el token nuevo a n8n.');
+  const r = await fetch(`${N8N_URL}/api/v1/credentials/${N8N_IG_CREDENCIAL}`, {
+    method: 'PATCH',
+    headers: { 'X-N8N-API-KEY': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'httpHeaderAuth', data: { name: 'Authorization', value: `Bearer ${token}` } }),
+  });
+  if (!r.ok) throw new Error(`n8n respondió ${r.status}: ${(await r.text()).slice(0, 200)}`);
+}
+
+async function refrescarIgTokenSiToca(hoy) {
+  if (!igTokenFila) return;
+  try {
+    const edadDias = (Date.now() - new Date(igTokenFila.refreshed_at)) / 86400000;
+    if (edadDias >= IG_REFRESCO_DIAS) {
+      const r = await fetch('https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token'
+        + `&access_token=${encodeURIComponent(igTokenFila.access_token)}`);
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.access_token) throw new Error(`Meta no lo renovó: ${JSON.stringify(data.error || data).slice(0, 200)}`);
+      const ahora = Date.now();
+      await guardarIgToken({
+        access_token: data.access_token,
+        refreshed_at: new Date(ahora).toISOString(),
+        expires_at: new Date(ahora + data.expires_in * 1000).toISOString(),
+      });
+      console.log(`[ig-token] Renovado; vence ${igTokenFila.expires_at}.`);
+    }
+    // Si n8n quedó atrás (renovado ahora o un intento anterior que falló), se reintenta.
+    if (!igTokenFila.n8n_synced_at || new Date(igTokenFila.n8n_synced_at) < new Date(igTokenFila.refreshed_at)) {
+      await copiarTokenAN8n(igTokenFila.access_token);
+      await guardarIgToken({ n8n_synced_at: new Date().toISOString() });
+      console.log('[ig-token] Credencial de n8n actualizada.');
+    }
+  } catch (err) {
+    console.error('[ig-token] Falló el refresco automático:', err.message);
+    if (igRefrescoAvisoDia === hoy) return;
+    igRefrescoAvisoDia = hoy;
+    const vence = igTokenFila.expires_at ? igTokenFila.expires_at.slice(0, 10) : 'fecha desconocida';
+    await sendTelegramAlert(
+      `🟠 No pude renovar solo el token de Instagram\n\n${err.message}\n\n` +
+      `Clara sigue entregando mientras el token actual no venza (${vence}). ` +
+      'Lo reintento cada hora; si no se arregla, renovarlo a mano.'
+    );
+  }
+}
+
 async function avisarSiElTokenVencePronto(hoy) {
-  const vence = process.env.IG_TOKEN_EXPIRES_AT; // YYYY-MM-DD, opcional
+  const vence = (igTokenFila && igTokenFila.expires_at && igTokenFila.expires_at.slice(0, 10))
+    || process.env.IG_TOKEN_EXPIRES_AT; // YYYY-MM-DD, opcional
   if (!vence || igVenceAvisoDia === hoy) return;
   const dias = Math.floor((new Date(`${vence}T12:00:00Z`) - Date.now()) / 86400000);
   if (dias > IG_TOKEN_AVISO_DIAS) return;
   igVenceAvisoDia = hoy;
   await sendTelegramAlert(
     `🟡 El token de Instagram vence en ${dias} día(s) (${vence}).\n\n` +
-    'Hay que generarlo de nuevo en Meta y actualizarlo en Railway (IG_ACCESS_TOKEN, ' +
-    'IG_TOKEN_EXPIRES_AT) y en la credencial de n8n. Si vence, Clara deja de ' +
-    'entregar en Instagram sin dar señales.'
+    'Debería renovarse solo cada semana: si llega este aviso, el refresco automático ' +
+    'está fallando. Hay que generarlo de nuevo en Meta y actualizarlo en Railway ' +
+    '(IG_ACCESS_TOKEN), en la credencial de n8n y en la tabla clara_ig_token de Supabase. ' +
+    'Si vence, Clara deja de entregar en Instagram sin dar señales.'
   );
 }
 
 async function checkIgToken() {
-  const token = process.env.IG_ACCESS_TOKEN;
+  try {
+    await cargarIgToken();
+  } catch (err) {
+    console.warn('[ig-token] No pude leer el token de Supabase, sigo con el de Railway:', err.message);
+  }
+  const token = igToken();
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   if (!token) {
     console.warn('[ig-token] Falta IG_ACCESS_TOKEN en el servidor.');
@@ -2325,6 +2425,7 @@ async function checkIgToken() {
     await sendTelegramAlert('🟢 Instagram restablecido — Clara ya está entregando en Instagram.');
   }
   igTokenCaido = false;
+  await refrescarIgTokenSiToca(hoy);
   await avisarSiElTokenVencePronto(hoy);
 }
 
