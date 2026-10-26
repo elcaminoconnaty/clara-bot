@@ -2329,8 +2329,7 @@ async function copiarTokenAN8n(token) {
         name: 'Authorization',
         value: `Bearer ${token}`,
         useCustomAuth: '',
-        allowedHttpRequestDomains: 'all',
-        allowedDomains: '',
+        allowedHttpRequestDomains: 'all', // con "all", allowedDomains debe ir ausente
       },
     }),
   });
